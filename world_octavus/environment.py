@@ -97,6 +97,10 @@ class OctopusEnv(gym.Env):
     transverse_vmax = 0.36
     hill_curvature = 0.25  # how sharply force drops with speed (Hill's a/F0): the classic value, an estimate
     eccentric_max = 1.5  # force while being stretched fast, times the held force (classic 1.5-1.8, an estimate)
+    # force-length: like real muscle, the muscles that stretch the arm lose force near the end of their range, fading
+    # to none at the full +70% (the fade's width is an estimate). With the arm springs soft, a full-force stretch
+    # pushed 14x harder than the spring and the joint limit gave way: segments slid 1.8x past it, leaving gaps
+    stretch_fade = 0.15
     # rigidity: each arm muscle's command averaged over about this long. Holding the same force keeps the average high;
     # contracting and releasing (a stride, flailing) averages out near 0 (an estimate, chosen by eye)
     rigidity_time = 1.0
@@ -173,6 +177,7 @@ class OctopusEnv(gym.Env):
         self.arm_muscles = np.flatnonzero(m.actuator_trntype == mujoco.mjtTrn.mjTRN_TENDON)
         self.arm_muscle_tendons = m.actuator_trnid[self.arm_muscles, 0]
         self.strain_per_tendon = np.zeros(len(self.arm_muscles))
+        self.tendon_reach = reach[self.arm_muscle_tendons]  # a stretch tendon's reach is its section's full +70%
         self.is_stretch = np.zeros(len(self.arm_muscles), dtype=bool)
         for j, tendon in enumerate(self.arm_muscle_tendons):
             section, kind = m.tendon(tendon).name.rstrip("0123456789")[len("sec"):].split("_", 1)  # "sec2_bend_up3"
@@ -238,7 +243,7 @@ class OctopusEnv(gym.Env):
         self.commanded_activation = np.abs(commanded) / self.max_force[self.arm_muscles]
         for _ in range(self.physics_steps):
             # Hill: the faster an arm muscle is shortening right now, the less of the commanded force it gets
-            self.data.ctrl[self.arm_muscles] = commanded * self._force_velocity(commanded)
+            self.data.ctrl[self.arm_muscles] = commanded * self._force_velocity(commanded) * self._force_length(commanded)
             mujoco.mj_step(self.model, self.data)
         self.step_count += 1
 
@@ -300,6 +305,12 @@ class OctopusEnv(gym.Env):
         steepness = (1 + 1 / self.hill_curvature) / (self.eccentric_max - 1)
         eccentric = self.eccentric_max - (self.eccentric_max - 1) / (1 + steepness * stretched)
         return np.where(speed >= 0, concentric, eccentric)
+
+    def _force_length(self, commanded):
+        # a stretch muscle pushing outward fades over the last stretch_fade of its reach; every other muscle keeps its force
+        stretched = self.data.ten_length[self.arm_muscle_tendons] / self.tendon_reach  # 1 = the section at its full +70%
+        fade = np.clip((1 - stretched) / self.stretch_fade, 0.0, 1.0)
+        return np.where(self.is_stretch & (commanded > 0), fade, 1.0)
 
     def _settle(self):
         # 3 s with every motor at 0 (no force): the arms fall onto the floor and the springs curl the tips

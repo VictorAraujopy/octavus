@@ -70,6 +70,7 @@
 
       <replicate count="8" euler="0 0 45">
         <body name="arm" pos="0.03696 0.01531 -0.02" euler="0 0 22.5">
+          <site name="arm_root" size="0.001" rgba="0 0 0 0"/>
 
 <body name="seg0_" pos="0 0 0" euler="0 25 0" gravcomp="0.9669811320754716">
   <joint name="seg0_stretch" type="slide" axis="1 0 0" range="-0.0075 0.02625" springref="0" stiffness="106.7" damping="76.19"/>
@@ -77,7 +78,8 @@
   <joint name="seg0_bend_side" axis="0 0 1" range="-45 45" springref="0" stiffness="0.06685" damping="0.04775"/>
   <joint name="seg0_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.05013" damping="0.03581"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01875" mass="0.043903" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01819"/>
+  <site name="seg0_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg0_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0075" pos="0.0187 0 -0.0159"/>
   <site name="seg0_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0225" rgba="0 0 0 0"/>
 <body name="seg1_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -86,7 +88,8 @@
   <joint name="seg1_bend_side" axis="0 0 1" range="-45 45" springref="0" stiffness="0.06286" damping="0.0449"/>
   <joint name="seg1_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.04715" damping="0.03368"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01763" mass="0.038829" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01710"/>
+  <site name="seg1_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg1_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0071" pos="0.0187 0 -0.0150"/>
   <site name="seg1_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0212" rgba="0 0 0 0"/>
 <body name="seg2_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -95,7 +98,8 @@
   <joint name="seg2_bend_side" axis="0 0 1" range="-45 45" springref="0" stiffness="0.05888" damping="0.04206"/>
   <joint name="seg2_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.04416" damping="0.03154"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01652" mass="0.034067" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01602"/>
+  <site name="seg2_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg2_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0066" pos="0.0187 0 -0.0140"/>
   <site name="seg2_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0198" rgba="0 0 0 0"/>
 <body name="seg3_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -104,7 +108,8 @@
   <joint name="seg3_bend_side" axis="0 0 1" range="-45 45" springref="0" stiffness="0.0549" damping="0.03922"/>
   <joint name="seg3_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.04118" damping="0.02941"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01540" mass="0.029616" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01494"/>
+  <site name="seg3_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg3_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0062" pos="0.0187 0 -0.0131"/>
   <site name="seg3_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0185" rgba="0 0 0 0"/>
 <body name="seg4_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -113,7 +118,8 @@
   <joint name="seg4_bend_side" axis="0 0 1" range="-45 45" springref="0" stiffness="0.05092" damping="0.03637"/>
   <joint name="seg4_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.03819" damping="0.02728"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01428" mass="0.025477" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01385"/>
+  <site name="seg4_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg4_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0057" pos="0.0187 0 -0.0121"/>
   <site name="seg4_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0171" rgba="0 0 0 0"/>
 <body name="seg5_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -122,7 +128,8 @@
   <joint name="seg5_bend_side" axis="0 0 1" range="-45 45" springref="0" stiffness="0.04694" damping="0.03353"/>
   <joint name="seg5_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.03521" damping="0.02515"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01317" mass="0.021649" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01277"/>
+  <site name="seg5_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg5_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0053" pos="0.0187 0 -0.0112"/>
   <site name="seg5_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0158" rgba="0 0 0 0"/>
 <body name="seg6_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -131,7 +138,8 @@
   <joint name="seg6_bend_side" axis="0 0 1" range="-45 45" springref="0" stiffness="0.04296" damping="0.03069"/>
   <joint name="seg6_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.03222" damping="0.02301"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01205" mass="0.018133" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01169"/>
+  <site name="seg6_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg6_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0048" pos="0.0187 0 -0.0102"/>
   <site name="seg6_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0145" rgba="0 0 0 0"/>
 <body name="seg7_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -140,7 +148,8 @@
   <joint name="seg7_bend_side" axis="0 0 1" range="-45 45" springref="3.333" stiffness="0.03898" damping="0.02784"/>
   <joint name="seg7_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.02923" damping="0.02088"/>
   <geom material="skin" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.01093" mass="0.014928" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="skin" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.01061"/>
+  <site name="seg7_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg7_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0044" pos="0.0187 0 -0.0093"/>
   <site name="seg7_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0131" rgba="0 0 0 0"/>
 <body name="seg8_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -149,7 +158,8 @@
   <joint name="seg8_bend_side" axis="0 0 1" range="-45 45" springref="6.667" stiffness="0.035" damping="0.025"/>
   <joint name="seg8_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.02625" damping="0.01875"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00982" mass="0.012034" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00952"/>
+  <site name="seg8_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg8_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0039" pos="0.0187 0 -0.0083"/>
   <site name="seg8_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0118" rgba="0 0 0 0"/>
 <body name="seg9_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -158,7 +168,8 @@
   <joint name="seg9_bend_side" axis="0 0 1" range="-45 45" springref="10" stiffness="0.03102" damping="0.02215"/>
   <joint name="seg9_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.02326" damping="0.01662"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00870" mass="0.009452" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00844"/>
+  <site name="seg9_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg9_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0035" pos="0.0187 0 -0.0074"/>
   <site name="seg9_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0104" rgba="0 0 0 0"/>
 <body name="seg10_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -167,7 +178,8 @@
   <joint name="seg10_bend_side" axis="0 0 1" range="-45 45" springref="13.33" stiffness="0.02704" damping="0.01931"/>
   <joint name="seg10_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.02028" damping="0.01448"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00758" mass="0.0071814" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00736"/>
+  <site name="seg10_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg10_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0030" pos="0.0187 0 -0.0064"/>
   <site name="seg10_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0091" rgba="0 0 0 0"/>
 <body name="seg11_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -176,7 +188,8 @@
   <joint name="seg11_bend_side" axis="0 0 1" range="-45 45" springref="16.67" stiffness="0.02305" damping="0.01647"/>
   <joint name="seg11_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.01729" damping="0.01235"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00647" mass="0.0052221" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00627"/>
+  <site name="seg11_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg11_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0026" pos="0.0187 0 -0.0055"/>
   <site name="seg11_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0078" rgba="0 0 0 0"/>
 <body name="seg12_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -185,7 +198,8 @@
   <joint name="seg12_bend_side" axis="0 0 1" range="-45 45" springref="20" stiffness="0.01907" damping="0.01362"/>
   <joint name="seg12_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.0143" damping="0.01022"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00535" mass="0.0035743" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00519"/>
+  <site name="seg12_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg12_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0021" pos="0.0187 0 -0.0045"/>
   <site name="seg12_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0064" rgba="0 0 0 0"/>
 <body name="seg13_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -194,7 +208,8 @@
   <joint name="seg13_bend_side" axis="0 0 1" range="-45 45" springref="23.33" stiffness="0.01509" damping="0.01078"/>
   <joint name="seg13_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.01132" damping="0.008085"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00423" mass="0.002238" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00411"/>
+  <site name="seg13_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg13_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0017" pos="0.0187 0 -0.0036"/>
   <site name="seg13_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0051" rgba="0 0 0 0"/>
 <body name="seg14_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -203,7 +218,8 @@
   <joint name="seg14_bend_side" axis="0 0 1" range="-45 45" springref="26.67" stiffness="0.01111" damping="0.007937"/>
   <joint name="seg14_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.008333" damping="0.005952"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00312" mass="0.001213" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00302"/>
+  <site name="seg14_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg14_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0012" pos="0.0187 0 -0.0026"/>
   <site name="seg14_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0037" rgba="0 0 0 0"/>
 <body name="seg15_" pos="0.0375 0 0" gravcomp="0.9669811320754716">
@@ -212,7 +228,8 @@
   <joint name="seg15_bend_side" axis="0 0 1" range="-45 45" springref="30" stiffness="0.00713" damping="0.005093"/>
   <joint name="seg15_twist" axis="1 0 0" range="-15 15" springref="0" stiffness="0.005348" damping="0.00382"/>
   <geom material="tip" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.00200" mass="0.00049951" margin="0.005" gap="0.005"/>
-  <geom class="visual" material="tip" type="capsule" fromto="-0.0262 0 0 0 0 0" size="0.00194"/>
+  <site name="seg15_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg15_end" pos="0.0375 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="0.0008" pos="0.0187 0 -0.0017"/>
   <site name="seg15_touch" type="capsule" fromto="0 0 0 0.0375 0 0" size="0.0024" rgba="0 0 0 0"/></body>
 </body>
@@ -295,6 +312,22 @@
   </deformable>
 
   <tendon>
+<spatial name="seg0_gap" width="0.01819" material="skin"><site site="arm_root"/><site site="seg0_start"/></spatial>
+<spatial name="seg1_gap" width="0.01710" material="skin"><site site="seg0_end"/><site site="seg1_start"/></spatial>
+<spatial name="seg2_gap" width="0.01602" material="skin"><site site="seg1_end"/><site site="seg2_start"/></spatial>
+<spatial name="seg3_gap" width="0.01494" material="skin"><site site="seg2_end"/><site site="seg3_start"/></spatial>
+<spatial name="seg4_gap" width="0.01385" material="skin"><site site="seg3_end"/><site site="seg4_start"/></spatial>
+<spatial name="seg5_gap" width="0.01277" material="skin"><site site="seg4_end"/><site site="seg5_start"/></spatial>
+<spatial name="seg6_gap" width="0.01169" material="skin"><site site="seg5_end"/><site site="seg6_start"/></spatial>
+<spatial name="seg7_gap" width="0.01061" material="skin"><site site="seg6_end"/><site site="seg7_start"/></spatial>
+<spatial name="seg8_gap" width="0.00952" material="tip"><site site="seg7_end"/><site site="seg8_start"/></spatial>
+<spatial name="seg9_gap" width="0.00844" material="tip"><site site="seg8_end"/><site site="seg9_start"/></spatial>
+<spatial name="seg10_gap" width="0.00736" material="tip"><site site="seg9_end"/><site site="seg10_start"/></spatial>
+<spatial name="seg11_gap" width="0.00627" material="tip"><site site="seg10_end"/><site site="seg11_start"/></spatial>
+<spatial name="seg12_gap" width="0.00519" material="tip"><site site="seg11_end"/><site site="seg12_start"/></spatial>
+<spatial name="seg13_gap" width="0.00411" material="tip"><site site="seg12_end"/><site site="seg13_start"/></spatial>
+<spatial name="seg14_gap" width="0.00302" material="tip"><site site="seg13_end"/><site site="seg14_start"/></spatial>
+<spatial name="seg15_gap" width="0.00194" material="tip"><site site="seg14_end"/><site site="seg15_start"/></spatial>
 <fixed name="sec0_bend_up"><joint joint="seg0_bend_up" coef="1"/><joint joint="seg1_bend_up" coef="1"/><joint joint="seg2_bend_up" coef="1"/><joint joint="seg3_bend_up" coef="1"/></fixed>
 <fixed name="sec0_bend_side"><joint joint="seg0_bend_side" coef="1"/><joint joint="seg1_bend_side" coef="1"/><joint joint="seg2_bend_side" coef="1"/><joint joint="seg3_bend_side" coef="1"/></fixed>
 <fixed name="sec0_twist"><joint joint="seg0_twist" coef="1"/><joint joint="seg1_twist" coef="1"/><joint joint="seg2_twist" coef="1"/><joint joint="seg3_twist" coef="1"/></fixed>

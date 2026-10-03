@@ -97,8 +97,6 @@ def arm():
         # weighed as the cylinder it stands for: MuJoCo would weigh the whole capsule, and the round ends of
         # neighbouring segments overlap, which made the arms 2.4x too heavy
         mass = TISSUE_DENSITY * np.pi * r ** 2 * length
-        # stretching slides a segment away from the one before it and opened a gap (the arm looked like a chain of
-        # sausages): a drawn-only capsule reaching back over that gap fills it, hidden inside the arm when not stretched
         xml += f"""
 <body name="seg{i}_" pos="{pos}"{tilt} gravcomp="{BUOYANCY}">
   {joint(f"seg{i}_stretch", "slide", "1 0 0", -SHORTEN * length, STRETCH * length, stretch_k)}
@@ -106,12 +104,22 @@ def arm():
   {joint(f"seg{i}_bend_side", "hinge", "0 0 1", -BEND, BEND, bend_k, rest=curl)}
   {joint(f"seg{i}_twist", "hinge", "1 0 0", -TWIST, TWIST, twist_k)}
   <geom material="{material}" type="capsule" fromto="0 0 0 {length:.4f} 0 0" size="{r:.5f}" mass="{mass:.5g}" margin="{SUCKER_REACH}" gap="{SUCKER_REACH}"/>
-  <geom class="visual" material="{material}" type="capsule" fromto="{-STRETCH * length:.4f} 0 0 0 0 0" size="{0.97 * r:.5f}"/>
+  <site name="seg{i}_start" size="0.001" rgba="0 0 0 0"/>
+  <site name="seg{i}_end" pos="{length:.4f} 0 0" size="0.001" rgba="0 0 0 0"/>
   <geom class="visual" material="sucker" type="sphere" size="{0.4 * r:.4f}" pos="{length / 2:.4f} 0 {-0.85 * r:.4f}"/>
   <site name="seg{i}_touch" type="capsule" fromto="0 0 0 {length:.4f} 0 0" size="{1.2 * r:.4f}" rgba="0 0 0 0"/>"""
         close += "</body>\n"
 
     tendons, muscles, suckers, sensors = "", "", "", ""
+    # stretching slides a segment away from the one before it and opens a gap. A drawn-only tube from the end of one
+    # segment to the start of the next fills it however the joint bends or stretches. It used to be a straight capsule
+    # fixed to the segment: bent, it poked out of the side of the segment before (the arm looked like loose sticks).
+    # A tendon with no stiffness, damping, limit or motor pulls on nothing
+    for i in range(SEGMENTS):
+        before = "arm_root" if i == 0 else f"seg{i - 1}_end"
+        material = "skin" if section_of(i) < 2 else "tip"
+        tendons += (f'<spatial name="seg{i}_gap" width="{0.97 * segment_radius(i):.5f}" material="{material}">'
+                    f'<site site="{before}"/><site site="seg{i}_start"/></spatial>\n')
     for k in range(SECTIONS):
         segs = [i for i in range(SEGMENTS) if section_of(i) == k]
         lever = np.mean([segment_radius(i) for i in segs])
@@ -203,6 +211,7 @@ def octopus(skin=""):
 
       <replicate count="{ARMS}" euler="0 0 {360 / ARMS:g}">
         <body name="arm" pos="{ARM_ROOT * np.cos(np.radians(180 / ARMS)):.5f} {ARM_ROOT * np.sin(np.radians(180 / ARMS)):.5f} -0.02" euler="0 0 {180 / ARMS:g}">
+          <site name="arm_root" size="0.001" rgba="0 0 0 0"/>
 {arm_bodies}
         </body>
       </replicate>
