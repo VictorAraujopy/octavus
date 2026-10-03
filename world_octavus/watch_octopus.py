@@ -6,24 +6,19 @@ and see it improve without restarting.
 Run (on macOS the viewer needs mjpython):  uv run mjpython world_octavus/watch_octopus.py
 With exploration (the random tries the trainer sees):  add --explore
 Targets as far and as high as the training's right now (its curriculum), instead of the real 3-6 m on the floor:  add --close
-The teacher's scenarios (close, middle, far, and each after a messed-up start), to compare with its watch:  add --scenarios
 """
 
-import itertools
 import sys
 from pathlib import Path
 
-import numpy as np
 import torch
 
 from brain_octavus.brain import Octavus_arms_brain
 from world_octavus.environment import CURRICULUM_FILE, OctopusEnv
-from world_octavus.teacher import SCENARIOS, run_scenario, watching
 
 CHECKPOINT = Path(__file__).resolve().parents[1] / "octavus.pt"
 explore = "--explore" in sys.argv
 close = "--close" in sys.argv
-scenarios = "--scenarios" in sys.argv
 
 
 def load_latest(brain):
@@ -46,14 +41,6 @@ def follow_training_distance(env):
         env.highest = float(highest)
 
 
-def brain_policy(x):
-    with torch.no_grad():
-        _, distribuition = brain.act(torch.tensor(x, dtype=torch.float32))
-        # the center of the draw is the move the brain believes in most; --explore adds the random tries
-        action = distribuition.sample() if explore else distribuition.mean
-    return action.numpy()
-
-
 if not CHECKPOINT.exists():
     raise SystemExit(f"no {CHECKPOINT.name} yet: run the training first (uv run brain_octavus/train.py)")
 
@@ -61,23 +48,16 @@ if not CHECKPOINT.exists():
 env = OctopusEnv(render_mode="human", curriculum=False)
 brain = Octavus_arms_brain()
 load_latest(brain)
-
-if scenarios:
-    rng = np.random.default_rng()
-    for name, farthest, messy in itertools.cycle(SCENARIOS):
-        if not watching(env):
-            break
-        load_latest(brain)
-        run_scenario(env, rng, name, farthest, messy, policy=brain_policy)
-    env.close()
-    sys.exit()
-
 follow_training_distance(env)
 x, _ = env.reset()
 steps = 0
 
 while env.viewer is None or env.viewer.is_running():
-    x, _, terminated, truncated, info = env.step(brain_policy(x))
+    with torch.no_grad():
+        _, distribuition = brain.act(torch.tensor(x, dtype=torch.float32))
+        # the center of the draw is the move the brain believes in most; --explore adds the random tries
+        action = distribuition.sample() if explore else distribuition.mean
+    x, _, terminated, truncated, info = env.step(action.numpy())
     steps += 1
     if terminated or truncated:
         result = "REACHED the target" if info["reached"] else "flipped over" if info["flipped"] else "time's up"

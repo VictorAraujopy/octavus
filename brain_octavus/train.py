@@ -1,4 +1,3 @@
-import math
 from pathlib import Path
 
 import gymnasium as gym
@@ -24,7 +23,6 @@ gamma = 0.99
 #gamma = future grades discount
 clip = 0.2 #PPO small step: an action's chance changes at most 20% per lap
 minibatch_size = 64
-critic_warm_up = 20 #first laps only the critic learns: it starts guessing the grades at random, and would push the copied brain anywhere
 x, _ = env.reset(seed=0)
 
 for lap in range(n_laps):
@@ -85,10 +83,7 @@ for lap in range(n_laps):
             pre_tanh = brain.pre_tanh(xs[chunk]) #every number before its last Tanh
             saturation = ((pre_tanh.abs() -2).clamp(min=0) ** 2).mean()#clamp: what goes below the min turns into the min, gives back a copy (clamp_ changes it in place)
             #loss is the amount of errors loss=error or amount of gradiant or fault
-            if lap < critic_warm_up:
-                loss = 0.5 * critic_loss #only the critic: the rest keeps what it copied from the teacher
-            else:
-                loss = arm_loss + 0.5 * critic_loss  + 0.1 * saturation
+            loss = arm_loss + 0.5 * critic_loss  + 0.1 * saturation
             #the optimizer just try to get this small so when this is big
             #it will adjust the weights to get it small
 
@@ -98,9 +93,7 @@ for lap in range(n_laps):
             loss.backward() # the gradient is stored in the onw weight
             #adjust the weights
             optimizer.step()
-            #arms max 0.05: with the soft springs a 0.07 command already bends a joint to its limit, a bigger draw flails them (the teacher with 0.1 reached 0/8)
-            brain.exploration.data[:20].clamp_(max=math.log(0.05))
-            brain.exploration.data[20:].clamp_(max=0.0)#siphon max 1, as before: at 0.5 it rarely reached a target by chance
+            brain.exploration.data.clamp_(max=0.0)#this clamp; max 1 again: with Hill's muscles the draw is cheap (at 0.5 it rarely reached a target by chance, so it never learned where to go)
 
     print(f"lap {lap}: reward {sum(memory_reward):+.1f} | reached {reached} | exploration {brain.exploration.exp().mean():.2f}", flush=True)
     if lap % 10 == 0:

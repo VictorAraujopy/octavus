@@ -23,7 +23,3 @@ train*.log
 # screen recordings for debugging (may show the desktop): never published
 *.mov
 *.mp4
-
-# recorded teacher demonstrations (big, regenerated with world_octavus/record_teacher.py)
-teacher_demos*.npz
-record_teacher.log
