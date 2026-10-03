@@ -1,7 +1,8 @@
 #the stage, set by hand: how much of the metabolic energy it pays (1 = all of it)
-#0.2 for stage 1: a flailing newborn pays ~0.4 per step instead of ~1.9, while standing still pays 0 and a good crawl
-#earns ~0.6, so moving is still worth more than standing still. Raise it by hand once it crawls
-ENERGY_SHARE = 0.2
+#0 for the start of stage 1: a flailing newborn then pays only ~0.05 per step (jerk, spin, rigidity) against 0 for
+#standing still, so it has no reason to freeze before it learns to crawl (at 0.2 it paid ~0.4, at 1 ~1.9).
+#Raise it by hand once it crawls, so it learns to crawl cheaply
+ENERGY_SHARE = 0.0
 
 
 def reward(info):
