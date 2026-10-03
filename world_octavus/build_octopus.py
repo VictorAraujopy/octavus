@@ -182,7 +182,7 @@ def octopus(skin=""):
     <light pos="0 0 6" dir="0 0 -1" directional="true" diffuse="0.55 0.7 0.8" castshadow="true"/>
     <geom name="floor" type="plane" size="0 0 0.05" material="sand" contype="1" conaffinity="1" fluidshape="none"/>
 
-    <!-- a ball where the head has to get: it rests on the floor at height 0 and floats up as the targets rise -->
+    <!-- a ball that only shows the episode's direction: environment.py keeps it 1 m ahead of the octopus -->
     <body name="target" mocap="true" pos="2 0 0.135">
       <geom class="visual" type="sphere" size="0.12" rgba="1 0.25 0.2 0.7"/>
     </body>

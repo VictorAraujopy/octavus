@@ -27,7 +27,7 @@ x, _ = env.reset(seed=0)
 
 for lap in range(n_laps):
     memory_x, memory_y, memory_log_prob, memory_reward, memory_done = [], [], [], [], []
-    reached = 0
+    speed = 0.0 #meters per second in the episode's direction, summed over the lap's steps
 
     for step in range(n_steps): # for each action from model
         x = torch.tensor(x, dtype=torch.float32)
@@ -41,7 +41,7 @@ for lap in range(n_laps):
             memory_log_prob.append(log_prob)
             memory_reward.append(reward)
             memory_done.append(terminated or truncated)
-            reached += info["reached"]
+            speed += info["speed"]
 
             x = next_x
 
@@ -95,6 +95,6 @@ for lap in range(n_laps):
             optimizer.step()
             brain.exploration.data.clamp_(max=0.0)#this clamp; max 1 again: with Hill's muscles the draw is cheap (at 0.5 it rarely reached a target by chance, so it never learned where to go)
 
-    print(f"lap {lap}: reward {sum(memory_reward):+.1f} | reached {reached} | exploration {brain.exploration.exp().mean():.2f}", flush=True)
+    print(f"lap {lap}: reward {sum(memory_reward):+.1f} | speed {speed / n_steps:+.3f} m/s | exploration {brain.exploration.exp().mean():.2f}", flush=True)
     if lap % 10 == 0:
         torch.save(brain.state_dict(), "octavus.pt")

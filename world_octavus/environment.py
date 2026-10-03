@@ -1,10 +1,12 @@
 """
-Octavus environment in the Gymnasium format: the octopus has to get to a target, on the sea floor or up in the water.
+Octavus environment in the Gymnasium format: the octopus has to move in a direction, on the sea floor.
 
-Each episode the octopus starts at the center and the target appears in a random direction, 3-6 m away, on the floor.
-With curriculum=True (the default, used by training) targets start close, 0.5-1 m, and move out 0.5 m each time
-it reaches at least half of its last 20 targets, until they are at 3-6 m. From then on each level lifts them
-0.25 m higher, up to 6 m. The current level is printed and saved to curriculum.txt in the project root.
+Each episode a direction is drawn at random around the octopus and it has to go that way: there is no target to reach,
+the episode just lasts 20 s. The brain sees the direction in its own body's frame (3 numbers, length 1), so it knows
+which way to go however it is turned. The red ball only shows the direction in the viewer: it stays 1 m ahead that way.
+Nothing changes by itself from one episode to the next: what the octopus has to learn is set by hand.
+Stage 1 is crawling: with JET_ON = False the whole siphon ignores its commands (aim, tilt and jet), so the only way
+to move is with the arms. Turn it on, by hand, when it crawls.
 
 Each arm is a soft tentacle (see build_octopus.py): 16 segments in 4 sections, and each section has 4 muscles
 (bend up/down, bend sideways, twist, stretch/shorten) plus the suckers of its segments.
@@ -12,7 +14,7 @@ Each arm is a soft tentacle (see build_octopus.py): 16 segments in 4 sections, a
 Observation (305 numbers):
     obs[:288].reshape(8, 4, 9) -> per arm, per section: where its 4 muscles are (-1 to 1 of their reach),
                                   how fast they move, and how hard the section touches something
-    obs[288:]                  -> body: target (3), up (3), velocity (3), spin (3), height (1),
+    obs[288:]                  -> body: direction (3), up (3), velocity (3), spin (3), height (1),
                                   siphon aim (1), siphon tilt (1), mantle water (1), jet stamina (1)
 
 Action (163 numbers between -1 and 1), the arms first and the siphon last:
@@ -33,14 +35,13 @@ holding suckers nothing, the jet its hydrodynamic power at 25%, plus a common oc
 
 The reward is not decided here: the trainer passes a function reward_fn(info) -> float,
 and the environment hands over the facts of each step in the info dict:
-distance, previous_distance, reached, flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same command over the last ~second; 0 = relaxed or contracting and releasing), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing at the target, -1 = back to it), curriculum_level (0 = targets at the first distance, 1 = at the real 3-6 m), dt.
+speed (m/s in the episode's direction, negative going the other way), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same command over the last ~second; 0 = relaxed or contracting and releasing), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
 
 Watch the octopus moving randomly (on macOS the viewer needs mjpython):
     uv run mjpython world_octavus/environment.py
 """
 
 import time
-from collections import deque
 from pathlib import Path
 
 import gymnasium as gym
@@ -51,7 +52,7 @@ import numpy as np
 from world_octavus.build_octopus import ARM_LENGTH, SECTIONS, SEGMENTS, section_of, segment_radius
 
 XML = Path(__file__).resolve().parent / "octopus.xml"
-CURRICULUM_FILE = Path(__file__).resolve().parents[1] / "curriculum.txt"
+JET_ON = False  # stage 1: crawl with the arms. True = the siphon works again (jet, aim and tilt)
 MUSCLES = ("bend_up", "bend_side", "twist", "stretch")
 
 
@@ -59,18 +60,10 @@ class OctopusEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
 
     physics_steps = 5
-    # 75 s per episode (was 50): a common octopus crawls 9 cm/s (Huffard 2006), but here the base stretches at most 0.36
-    # of its length per second (Zullo 2022) and crawling came out at ~6 cm/s, so in 75 s it covers what a real one does in 50
-    max_steps = 3000
-    target_radius = 0.15
-    target_distance = (3.0, 6.0)
-    target_height = (0.0, 6.0)  # meters above where its head rests; 0 = on the floor
-    # curriculum: a target always lands between half and all of the current farthest distance (and highest height)
-    curriculum_first_far = 1.0  # meters: close enough to bump into while it's still learning to move
-    curriculum_step = 0.5  # how much farther each level goes, up to target_distance's 6 m
-    curriculum_height_step = 0.25  # once at 6 m away, how much higher each level goes
-    curriculum_window = 20  # episodes looked at to decide
-    curriculum_pass = 0.5  # share of those it must reach to level up
+    # 20 s per episode: moving in a direction needs no time to arrive anywhere, and a training lap (2048 steps, ~51 s)
+    # then sees ~2.5 different starts instead of not even one
+    max_steps = 800
+    marker_ahead = 1.0  # meters: the red ball shows the direction, always this far ahead of the octopus
     initial_noise = 0.1  # fraction of each joint's range
     # keep every observation number close to 1, so the brain's Tanh layers don't saturate
     muscle_speed_time = 0.1  # a muscle crossing its whole reach in 0.1 s reads 1
@@ -108,20 +101,13 @@ class OctopusEnv(gym.Env):
     # contracting and releasing (a stride, flailing) averages out near 0 (an estimate, chosen by eye)
     rigidity_time = 1.0
 
-    def __init__(self, reward_fn=None, render_mode=None, xml=XML, curriculum=True):
+    def __init__(self, reward_fn=None, render_mode=None, xml=XML):
         self.model = mujoco.MjModel.from_xml_path(str(xml))
         self.data = mujoco.MjData(self.model)
         self.reward_fn = reward_fn
         self.render_mode = render_mode
         self.viewer = None
         m = self.model
-
-        self.curriculum = curriculum
-        self.farthest = self.curriculum_first_far if curriculum else self.target_distance[1]
-        self.highest = self.target_height[0]  # the real task stays on the floor, where the crab will be
-        self.recent_reached = deque(maxlen=self.curriculum_window)
-        if curriculum:
-            CURRICULUM_FILE.write_text(f"{self.farthest} {self.highest}\n")
 
         self.torso = m.body("torso").id
         self.mass = m.body_subtreemass[self.torso]
@@ -138,6 +124,7 @@ class OctopusEnv(gym.Env):
                 drives += [[motor[f"sec{k}_{kind}{a}"]] for kind in MUSCLES]
                 drives.append([motor[f"seg{i}_sucker{a}"] for i in range(SEGMENTS) if section_of(i) == k])
         drives += [[motor["siphon_aim"]], [motor["siphon_tilt"]], [motor["jet"]]]
+        self.siphon_motors = [motor["siphon_aim"], motor["siphon_tilt"], motor["jet"]]
         self.action_of_motor = np.zeros(m.nu, dtype=int)
         for number, motors in enumerate(drives):
             self.action_of_motor[motors] = number
@@ -208,7 +195,7 @@ class OctopusEnv(gym.Env):
         self.relaxed_time = 0.0
         self.refilling = False
         self.dt = m.opt.timestep * self.physics_steps
-        self.target = np.zeros(3)
+        self.direction = np.array([1.0, 0.0, 0.0])
 
         self.action_space = gym.spaces.Box(-1.0, 1.0, (self.n_actions,), np.float32)
         observation_size = self._observe().size
@@ -221,15 +208,11 @@ class OctopusEnv(gym.Env):
         self.data.qpos[self.joint_qpos] += self.np_random.uniform(-1, 1, self.joint_noise.size) * self.joint_noise
 
         angle = self.np_random.uniform(0, 2 * np.pi)
-        self._level_up_if_ready()
-        distance = self.np_random.uniform(self.farthest / 2, self.farthest)
-        height = self.np_random.uniform(self.highest / 2, self.highest)
-        self.target = np.array([distance * np.cos(angle), distance * np.sin(angle), self.resting_height + height])
-        self.data.mocap_pos[0] = self.target
+        self.direction = np.array([np.cos(angle), np.sin(angle), 0.0])  # flat: rising or sinking doesn't count
 
         mujoco.mj_forward(self.model, self.data)
+        self._place_marker()
         self.step_count = 0
-        self.distance = self._distance_to_target()
         self.previous_action = np.zeros(self.n_actions)
         self.mantle_water = 1.0
         self.stamina = 1.0
@@ -245,8 +228,11 @@ class OctopusEnv(gym.Env):
         low, high = self.model.actuator_ctrlrange.T
         wanted = action[self.action_of_motor]
         self.data.ctrl[:] = np.where(wanted >= 0, wanted * high, wanted * -low)
+        if not JET_ON:
+            self.data.ctrl[self.siphon_motors] = 0.0  # stage 1: the siphon stays relaxed whatever the brain says
         # each arm muscle's command, -1 to 1, averaged over the last ~second (for the rigidity in the info dict)
         self.held_command += (wanted[self.arm_muscles] - self.held_command) * self.dt / self.rigidity_time
+        position_before = self.data.xpos[self.torso].copy()
         self._squirt()
         commanded = self.data.ctrl[self.arm_muscles].copy()
         self.commanded_activation = np.abs(commanded) / self.max_force[self.arm_muscles]
@@ -256,14 +242,12 @@ class OctopusEnv(gym.Env):
             mujoco.mj_step(self.model, self.data)
         self.step_count += 1
 
-        previous_distance, self.distance = self.distance, self._distance_to_target()
-        reached = self.distance < self.target_radius
+        moved = self.data.xpos[self.torso] - position_before
+        self._place_marker()
         flipped = self.data.xmat[self.torso][8] < 0
         power, holding_power = self._metabolic_power()
         info = {
-            "distance": self.distance,
-            "previous_distance": previous_distance,
-            "reached": reached,
+            "speed": moved @ self.direction / self.dt,
             "flipped": flipped,
             "action": action,
             "previous_action": self.previous_action,
@@ -274,21 +258,17 @@ class OctopusEnv(gym.Env):
             "holding_power": holding_power,
             "rigidity": float(np.mean(self.held_command ** 2)),
             "mass": self.mass,
-            # how far the curriculum's distance has gone, 0 to 1 (1 = the real task; also 1 with the curriculum off)
-            "curriculum_level": (self.farthest - self.curriculum_first_far) / (self.target_distance[1] - self.curriculum_first_far),
             "tips_touching": (self._section_touch()[:, -1] > self.tip_touch).mean(),
             "airborne": self.data.ncon == 0,
-            "facing": self._facing_target(),
+            "facing": self._facing(),
             "dt": self.dt,
         }
         reward = self.reward_fn(info) if self.reward_fn else 0.0
         self.previous_action = action
-        # flipping over doesn't end the episode: it has to right itself. Ending it made dying early
-        # a way out whenever living scored negative
-        terminated = reached
+        # only time ends an episode. Flipping over doesn't: it has to right itself (ending it made dying early
+        # a way out whenever living scored negative)
+        terminated = False
         truncated = self.step_count >= self.max_steps
-        if terminated or truncated:
-            self.recent_reached.append(bool(reached))
 
         if self.render_mode == "human":
             self.render()
@@ -352,22 +332,6 @@ class OctopusEnv(gym.Env):
         total = muscles + holding + self._jet_power() / self.muscle_efficiency + self.basal_power
         return total, holding
 
-    def _level_up_if_ready(self):
-        # once it reaches at least half of its last 20: first the targets move out, then up; the new level starts a fresh count
-        full_window = len(self.recent_reached) == self.curriculum_window
-        all_levels_done = self.farthest >= self.target_distance[1] and self.highest >= self.target_height[1]
-        if not self.curriculum or not full_window or all_levels_done:
-            return
-        if np.mean(self.recent_reached) >= self.curriculum_pass:
-            if self.farthest < self.target_distance[1]:
-                self.farthest = min(self.farthest + self.curriculum_step, self.target_distance[1])
-            else:
-                self.highest = min(self.highest + self.curriculum_height_step, self.target_height[1])
-            self.recent_reached.clear()
-            CURRICULUM_FILE.write_text(f"{self.farthest} {self.highest}\n")
-            print(f"curriculum: targets now {self.farthest / 2:.2f}-{self.farthest:.2f} m away, "
-                  f"{self.highest / 2:.2f}-{self.highest:.2f} m up", flush=True)
-
     def _squirt(self):
         # the mantle is a pump: it squirts while it has water and only refills once the jet has been relaxed
         # for a moment. Jetting also stops the heart, so a stamina runs out and only comes back while resting
@@ -403,14 +367,16 @@ class OctopusEnv(gym.Env):
     def _section_touch(self):
         return (self.touch_to_section @ self.data.sensordata).reshape(self.n_arms, SECTIONS)
 
-    def _facing_target(self):
-        # cosine of the angle between where the eyes point (the body's +x) and the target, on the floor plane
+    def _facing(self):
+        # cosine of the angle between where the eyes point (the body's +x) and the episode's direction, on the floor plane
         rotation = self.data.xmat[self.torso].reshape(3, 3)
-        seen = rotation.T @ (self.target - self.data.xpos[self.torso])
+        seen = rotation.T @ self.direction
         return seen[0] / (np.hypot(seen[0], seen[1]) + 1e-8)
 
-    def _distance_to_target(self):
-        return np.linalg.norm(self.data.xpos[self.torso] - self.target)
+    def _place_marker(self):
+        # the red ball, only for the eyes: on the floor, marker_ahead in front of the octopus along the direction
+        ahead = self.data.xpos[self.torso] + self.marker_ahead * self.direction
+        self.data.mocap_pos[0] = [ahead[0], ahead[1], self.resting_height]
 
     def _observe(self):
         rotation = self.data.xmat[self.torso].reshape(3, 3)
@@ -422,7 +388,7 @@ class OctopusEnv(gym.Env):
             self._section_touch()[..., None] / self.touch_scale,
         ], axis=2)
 
-        target_seen = rotation.T @ (self.target - position)
+        direction_seen = rotation.T @ self.direction
         up_seen = rotation.T @ [0.0, 0.0, 1.0]
         torso_velocity = rotation.T @ self.data.qvel[:3]
         torso_spin = self.data.qvel[3:6] / self.spin_scale
@@ -434,7 +400,7 @@ class OctopusEnv(gym.Env):
 
         return np.concatenate([
             per_section.ravel(),
-            target_seen,
+            direction_seen,
             up_seen,
             torso_velocity,
             torso_spin,
@@ -448,9 +414,12 @@ if __name__ == "__main__":
     observation, _ = env.reset(seed=0)
     print(f"the brain receives {observation.size} numbers and returns {env.action_space.shape[0]}")
 
+    speeds = []
     while env.viewer is None or env.viewer.is_running():
         _, _, terminated, truncated, info = env.step(env.action_space.sample())
+        speeds.append(info["speed"])
         if terminated or truncated:
-            print(f"episode over: reached={info['reached']} flipped={info['flipped']} distance={info['distance']:.2f} m")
+            print(f"episode over: {np.mean(speeds):+.3f} m/s in the direction, flipped={info['flipped']}")
+            speeds = []
             env.reset()
     env.close()

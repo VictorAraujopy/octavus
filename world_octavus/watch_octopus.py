@@ -1,24 +1,22 @@
 """
-Watch the trained octopus: loads octavus.pt and lets the brain drive the body in the viewer.
+Watch the trained octopus: loads octavus.pt and lets the brain drive the body in the viewer, the way training sees
+it: every move is a draw (what the brain believes in most plus its random tries).
+The red ball shows the episode's direction (it stays 1 m ahead of the octopus that way).
 The brain is reloaded at the start of every episode, so you can keep this open while training runs
 and see it improve without restarting.
 
 Run (on macOS the viewer needs mjpython):  uv run mjpython world_octavus/watch_octopus.py
-With exploration (the random tries the trainer sees):  add --explore
-Targets as far and as high as the training's right now (its curriculum), instead of the real 3-6 m on the floor:  add --close
 """
 
-import sys
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from brain_octavus.brain import Octavus_arms_brain
-from world_octavus.environment import CURRICULUM_FILE, OctopusEnv
+from world_octavus.environment import OctopusEnv
 
 CHECKPOINT = Path(__file__).resolve().parents[1] / "octavus.pt"
-explore = "--explore" in sys.argv
-close = "--close" in sys.argv
 
 
 def load_latest(brain):
@@ -33,37 +31,24 @@ def load_latest(brain):
         return False
 
 
-def follow_training_distance(env):
-    # --close: targets as far and as high as the training's curriculum is now (only reads curriculum.txt, never writes it)
-    if close and CURRICULUM_FILE.exists():
-        farthest, highest = CURRICULUM_FILE.read_text().split()
-        env.farthest = float(farthest)
-        env.highest = float(highest)
-
-
 if not CHECKPOINT.exists():
     raise SystemExit(f"no {CHECKPOINT.name} yet: run the training first (uv run brain_octavus/train.py)")
 
-# curriculum off: shows the real task (targets 3-6 m, on the floor) and leaves curriculum.txt to the training
-env = OctopusEnv(render_mode="human", curriculum=False)
+env = OctopusEnv(render_mode="human")
 brain = Octavus_arms_brain()
 load_latest(brain)
-follow_training_distance(env)
 x, _ = env.reset()
-steps = 0
+speeds = []
 
 while env.viewer is None or env.viewer.is_running():
     with torch.no_grad():
-        _, distribuition = brain.act(torch.tensor(x, dtype=torch.float32))
-        # the center of the draw is the move the brain believes in most; --explore adds the random tries
-        action = distribuition.sample() if explore else distribuition.mean
-    x, _, terminated, truncated, info = env.step(action.numpy())
-    steps += 1
+        draw_y, _ = brain.act(torch.tensor(x, dtype=torch.float32))  # a draw, like every move in training
+    x, _, terminated, truncated, info = env.step(draw_y.numpy())
+    speeds.append(info["speed"])
     if terminated or truncated:
-        result = "REACHED the target" if info["reached"] else "flipped over" if info["flipped"] else "time's up"
-        print(f"{result} after {steps} steps ({steps * env.dt:.1f}s), {info['distance']:.2f} m from the target")
+        print(f"{np.mean(speeds):+.3f} m/s in the direction, {sum(speeds) * env.dt:+.2f} m in {len(speeds) * env.dt:.0f} s"
+              f"{', flipped over' if info['flipped'] else ''}")
         load_latest(brain)
-        follow_training_distance(env)
         x, _ = env.reset()
-        steps = 0
+        speeds = []
 env.close()
