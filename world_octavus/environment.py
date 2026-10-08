@@ -1,7 +1,8 @@
 """
-Octavus environment in the Gymnasium format: the octopus has to move in a direction, on the sea floor.
+Octavus environment in the Gymnasium format: the octopus has to move in a direction, along the sea floor or up.
 
-Each episode a direction is drawn at random around the octopus and it has to go that way: there is no target to reach,
+Each episode a direction is drawn at random around the octopus, between MIN_CLIMB and MAX_CLIMB degrees above the
+floor (both 0 = flat), and it has to go that way: there is no target to reach,
 the episode just lasts 20 s. The brain sees the direction in its own body's frame (3 numbers, length 1), so it knows
 which way to go however it is turned. The red ball only shows the direction in the viewer: it stays 1 m ahead that way.
 Nothing changes by itself from one episode to the next: what the octopus has to learn is set by hand.
@@ -22,7 +23,9 @@ Action (163 numbers between -1 and 1), the arms first and the siphon last:
                                      (one sucker number drives the suckers of all the section's segments)
     action[160:163]               -> siphon: siphon_aim (funnel left/right), siphon_tilt (funnel up/down),
                                      jet (how hard it squirts)
-    0 is always "no force" (relaxed muscle, loose sucker, no jet); suckers and jet treat anything below 0 as off
+    an arm muscle's number is a posture, where to take its section: 0 is the pose it lies in on the floor, relaxed,
+    and -1 / 1 the joints' limits on either side (0.3 = 30% of the way). The arm's own reflex works out the force
+    (see posture_gain). Suckers and jet are 0 to 1, and anything at or below 0 is off
 
 The jet squirts the water in the mantle: a full jet empties it in 0.44 s, and it refills in 0.4 s while the jet
 rests (refilling only starts after 0.1 s relaxed in a row, so a squirt is a real squeeze, not a flicker).
@@ -35,7 +38,7 @@ holding suckers nothing, the jet its hydrodynamic power at 25%, plus a common oc
 
 The reward is not decided here: the trainer passes a function reward_fn(info) -> float,
 and the environment hands over the facts of each step in the info dict:
-speed (m/s in the episode's direction, negative going the other way), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same command over the last ~second; 0 = relaxed or contracting and releasing), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
+speed (m/s in the episode's direction, negative going the other way), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same posture away from rest over the last ~second; 0 = resting pose, or moving one way then the other), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
 
 Watch the octopus moving randomly (on macOS the viewer needs mjpython):
     uv run mjpython world_octavus/environment.py
@@ -52,7 +55,12 @@ import numpy as np
 from world_octavus.build_octopus import ARM_LENGTH, SECTIONS, SEGMENTS, section_of, segment_radius
 
 XML = Path(__file__).resolve().parent / "octopus.xml"
-JET_ON = False  # stage 1: crawl with the arms. True = the siphon works again (jet, aim and tilt)
+JET_ON = True  # the siphon works (jet, aim and tilt). False = stage 1: crawl with the arms only
+# how many degrees above the floor the episode's direction points, drawn evenly between these two. Both 0 = always flat,
+# a crawl; above 0 it has to swim up, which only the jet can do (the arms have nothing to climb). 30-60: always a
+# diagonal up, never flat enough to crawl there, never so steep that which way around it doesn't matter
+MIN_CLIMB = 30
+MAX_CLIMB = 60
 MUSCLES = ("bend_up", "bend_side", "twist", "stretch")
 
 
@@ -101,8 +109,17 @@ class OctopusEnv(gym.Env):
     # to none at the full +70% (the fade's width is an estimate). With the arm springs soft, a full-force stretch
     # pushed 14x harder than the spring and the joint limit gave way: segments slid 1.8x past it, leaving gaps
     stretch_fade = 0.15
-    # rigidity: each arm muscle's command averaged over about this long. Holding the same force keeps the average high;
-    # contracting and releasing (a stride, flailing) averages out near 0 (an estimate, chosen by eye)
+    # the arm's reflex: how hard a muscle pushes toward the posture the brain asked for, as a share of its full force
+    # per whole reach of distance. An octopus arm holds 2/3 of its neurons and runs its own movements: the brain says
+    # where, the arm works out how. With raw force and springs this soft, a command of 0.07 already took a joint to its
+    # limit, so any small bias in the brain curled every arm into a ball. 1 = full force a whole reach away, the
+    # muscle's own scale. Tested against 0.3 and 3: at 0.3 a crawl by hand barely moved (0.2 cm/s), at 3 the arm got
+    # stiffer (a 0.05 N push at the tip bent it 2.8 cm, the relaxed arm 15, this 4.2) and slid further past its stretch
+    # limit (1.32x, this 1.18x). It still swims with the arms trailing (jet: 0.32 m/s on average, as relaxed arms did)
+    posture_gain = 1.0
+    # rigidity: each arm muscle's command (its posture) averaged over about this long. Holding the same posture away
+    # from rest keeps the average high; moving one way then the other (a stride, flailing) averages out near 0,
+    # and pulsing on one side only pays for its average (an estimate, chosen by eye)
     rigidity_time = 1.0
 
     def __init__(self, reward_fn=None, render_mode=None, xml=XML):
@@ -188,6 +205,17 @@ class OctopusEnv(gym.Env):
                 self.is_stretch[j] = True
             else:
                 self.strain_per_tendon[j] = np.mean([segment_radius(i) for i in segments]) / muscle_length
+        # posture 0 is each section as it lies settled on the floor (the springs' rest would push the arms into it),
+        # and -1 / 1 its joints' limits added up (a section's tendon is the sum of its joints)
+        mujoco.mj_resetData(m, self.data)
+        self.data.qpos[:] = self.resting_pose
+        mujoco.mj_forward(m, self.data)
+        self.rest_length = self.data.ten_length[self.arm_muscle_tendons].copy()
+        arm_joints = [joints[t] for t in self.arm_muscle_tendons]
+        self.shortest = np.array([m.jnt_range[j, 0].sum() for j in arm_joints])
+        self.longest = np.array([m.jnt_range[j, 1].sum() for j in arm_joints])
+        self.arm_force_low, self.arm_force_high = m.actuator_ctrlrange[self.arm_muscles].T
+        self.posture = self.rest_length.copy()
         self.commanded_activation = np.zeros(len(self.arm_muscles))
         self.held_command = np.zeros(len(self.arm_muscles))
         self.jet = m.actuator("jet").id
@@ -212,8 +240,9 @@ class OctopusEnv(gym.Env):
         self.data.qpos[:] = self.resting_pose
         self.data.qpos[self.joint_qpos] += self.np_random.uniform(-1, 1, self.joint_noise.size) * self.joint_noise
 
-        angle = self.np_random.uniform(0, 2 * np.pi)
-        self.direction = np.array([np.cos(angle), np.sin(angle), 0.0])  # flat: rising or sinking doesn't count
+        angle = self.np_random.uniform(0, 2 * np.pi)  # which way around the octopus
+        climb = np.radians(self.np_random.uniform(MIN_CLIMB, MAX_CLIMB))  # how far above the floor
+        self.direction = np.array([np.cos(climb) * np.cos(angle), np.cos(climb) * np.sin(angle), np.sin(climb)])
 
         mujoco.mj_forward(self.model, self.data)
         self._place_marker()
@@ -228,23 +257,27 @@ class OctopusEnv(gym.Env):
 
     def step(self, action):
         action = np.clip(action, -1.0, 1.0)
-        # 0 from the brain is always "no force": 0..1 scales up to the motor's top, 0..-1 down to its bottom.
-        # Suckers and jet only go 0..1, so anything at or below 0 is off (before, 0 meant half suction and half jet)
+        # suckers and siphon: 0..1 scales up to the motor's top, 0..-1 down to its bottom. Suckers and jet only go 0..1,
+        # so anything at or below 0 is off (before, 0 meant half suction and half jet). Arm muscles are postures, below
         low, high = self.model.actuator_ctrlrange.T
         wanted = action[self.action_of_motor]
         self.data.ctrl[:] = np.where(wanted >= 0, wanted * high, wanted * -low)
         if not JET_ON:
             self.data.ctrl[self.siphon_motors] = 0.0  # stage 1: the siphon stays relaxed whatever the brain says
+        self.posture = self._posture_target(wanted[self.arm_muscles])
         # each arm muscle's command, -1 to 1, averaged over the last ~second (for the rigidity in the info dict)
         self.held_command += (wanted[self.arm_muscles] - self.held_command) * self.dt / self.rigidity_time
         position_before = self.data.xpos[self.torso].copy()
         self._squirt()
-        commanded = self.data.ctrl[self.arm_muscles].copy()
-        self.commanded_activation = np.abs(commanded) / self.max_force[self.arm_muscles]
+        force_sum = np.zeros(len(self.arm_muscles))
         for _ in range(self.physics_steps):
-            # Hill: the faster an arm muscle is shortening right now, the less of the commanded force it gets
-            self.data.ctrl[self.arm_muscles] = commanded * self._force_velocity(commanded) * self._force_length(commanded)
+            reflex = self._reflex()
+            # Hill: the faster an arm muscle is shortening right now, the less of the reflex's force it gets
+            self.data.ctrl[self.arm_muscles] = reflex * self._force_velocity(reflex) * self._force_length(reflex)
+            force_sum += np.abs(reflex)
             mujoco.mj_step(self.model, self.data)
+        # the effort is what the reflex asked for: Hill lowers the force it gets while shortening, not the effort
+        self.commanded_activation = force_sum / self.physics_steps / self.max_force[self.arm_muscles]
         self.step_count += 1
 
         moved = self.data.xpos[self.torso] - position_before
@@ -293,6 +326,18 @@ class OctopusEnv(gym.Env):
         if self.viewer is not None:
             self.viewer.close()
             self.viewer = None
+
+    def _posture_target(self, command):
+        # where each section should go: 0..1 from the resting pose out to one limit, 0..-1 out to the other
+        toward_longest = self.rest_length + command * (self.longest - self.rest_length)
+        toward_shortest = self.rest_length + command * (self.rest_length - self.shortest)
+        return np.where(command >= 0, toward_longest, toward_shortest)
+
+    def _reflex(self):
+        # the arm's reflex: push toward the posture, harder the further away, within what each muscle can pull
+        distance = self.posture - self.data.ten_length[self.arm_muscle_tendons]
+        force = self.posture_gain * distance / self.tendon_reach
+        return np.clip(force, self.arm_force_low, self.arm_force_high)
 
     def _force_velocity(self, commanded):
         # each arm muscle's shortening speed, in its own lengths per second (negative = being stretched)
@@ -385,9 +430,8 @@ class OctopusEnv(gym.Env):
         return seen[0] / (np.hypot(seen[0], seen[1]) + 1e-8)
 
     def _place_marker(self):
-        # the red ball, only for the eyes: on the floor, marker_ahead in front of the octopus along the direction
-        ahead = self.data.xpos[self.torso] + self.marker_ahead * self.direction
-        self.data.mocap_pos[0] = [ahead[0], ahead[1], self.resting_height]
+        # the red ball, only for the eyes: marker_ahead from the head along the direction, so it rises when the direction does
+        self.data.mocap_pos[0] = self.data.xpos[self.torso] + self.marker_ahead * self.direction
 
     def _observe(self):
         rotation = self.data.xmat[self.torso].reshape(3, 3)
