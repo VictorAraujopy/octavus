@@ -1,8 +1,8 @@
 #the stage, set by hand: how much of the metabolic energy it pays (1 = all of it)
-#0.2 now that it crawls (posture arms, jet on): flailing with random jets pays ~0.47 per step, its crawl (+0.40
-#of progress) ~0.17, a full jet (+3.7) ~0.39, standing still 0, so crawling still beats standing still.
-#At 1 its crawl would cost 0.86, more than it earns, and it would freeze. Raise it by hand as the crawl gets cheaper
-ENERGY_SHARE = 0.2
+#0 from zero: a newborn at 0.2 with the jet on paid ~0.5 per step against 0 for standing still, and it froze.
+#Raise it by hand once it crawls and swims (at 0.2 a trained brain's crawl paid ~0.17 against +0.40 of progress;
+#at 1 it would pay more than it earns and freeze)
+ENERGY_SHARE = 0.0
 
 
 def reward(info):

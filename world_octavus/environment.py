@@ -23,14 +23,16 @@ Action (163 numbers between -1 and 1), the arms first and the siphon last:
                                      (one sucker number drives the suckers of all the section's segments)
     action[160:163]               -> siphon: siphon_aim (funnel left/right), siphon_tilt (funnel up/down),
                                      jet (how hard it squirts)
-    an arm muscle's number is a posture, where to take its section: 0 is the pose it lies in on the floor, relaxed,
-    and -1 / 1 the joints' limits on either side (0.3 = 30% of the way). The arm's own reflex works out the force
-    (see posture_gain). Suckers and jet are 0 to 1, and anything at or below 0 is off
+    an arm muscle's number is a posture, where to take its section, and how firmly: 0 is limp (no force, the arm
+    goes where the water and the floor push it), and further out it heads for that share of the way from the pose it
+    lies in on the floor to the joints' limit (-1 / 1), holding it firmer the further out. The arm's own reflex works
+    out the force (see posture_gain). Suckers and jet are 0 to 1, and anything at or below 0 is off
 
 The jet squirts the water in the mantle: a full jet empties it in 0.44 s, and it refills in 0.4 s while the jet
 rests (refilling only starts after 0.1 s relaxed in a row, so a squirt is a real squeeze, not a flicker).
 The mantle works in a rhythm: once it runs empty it refills before squeezing again, so holding the jet on swims in pulses.
 Jetting also stops the octopus's systemic heart, so it tires: 5 s of full jet in total, back after ~13 min of rest.
+Each episode starts with a random amount of it (MIN_START_STAMINA to MAX_START_STAMINA).
 
 power is the metabolic cost in watts, what the food pays for: muscles pushing cost 4x their work (25% efficient),
 muscles braking 1/1.2 of it, holding force up to 100 W per kg of muscle, growing with the square of the effort (even when nothing moves),
@@ -38,7 +40,7 @@ holding suckers nothing, the jet its hydrodynamic power at 25%, plus a common oc
 
 The reward is not decided here: the trainer passes a function reward_fn(info) -> float,
 and the environment hands over the facts of each step in the info dict:
-speed (m/s in the episode's direction, negative going the other way), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same posture away from rest over the last ~second; 0 = resting pose, or moving one way then the other), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
+speed (m/s in the episode's direction, negative going the other way), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same posture away from rest over the last ~second; 0 = limp, or moving one way then the other), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
 
 Watch the octopus moving randomly (on macOS the viewer needs mjpython):
     uv run mjpython world_octavus/environment.py
@@ -55,12 +57,20 @@ import numpy as np
 from world_octavus.build_octopus import ARM_LENGTH, SECTIONS, SEGMENTS, section_of, segment_radius
 
 XML = Path(__file__).resolve().parent / "octopus.xml"
-JET_ON = True  # the siphon works (jet, aim and tilt). False = stage 1: crawl with the arms only
+# the stages, set by hand, one at a time: (1) crawl flat, jet off; (2) jet on; (3) directions up; then the energy.
+# Starting from zero straight at stage 3 froze it: its first random jets flipped it over, it learned the jet only
+# cost, stopped using it, and without the jet it couldn't go up
+JET_ON = False  # stage 1: crawl with the arms only. True = the siphon works (jet, aim and tilt)
 # how many degrees above the floor the episode's direction points, drawn evenly between these two. Both 0 = always flat,
-# a crawl; above 0 it has to swim up, which only the jet can do (the arms have nothing to climb). 30-60: always a
-# diagonal up, never flat enough to crawl there, never so steep that which way around it doesn't matter
-MIN_CLIMB = 30
-MAX_CLIMB = 60
+# a crawl; above 0 it has to swim up, which only the jet can do (the arms have nothing to climb). For stage 3, 30-60:
+# always a diagonal up, never flat enough to crawl there, never so steep that which way around it doesn't matter
+MIN_CLIMB = 0
+MAX_CLIMB = 0
+# how full the jet's stamina starts each episode, drawn evenly between these two. Both 1 = always rested. Starting
+# full, it ran out at ~13 s and it just stopped for the last 7 s: starting anywhere from empty, it practises what to
+# do once the siphon is spent with a whole episode ahead, and it sees its stamina, so it can tell the two cases apart
+MIN_START_STAMINA = 0.0
+MAX_START_STAMINA = 1.0
 MUSCLES = ("bend_up", "bend_side", "twist", "stretch")
 
 
@@ -110,12 +120,13 @@ class OctopusEnv(gym.Env):
     # pushed 14x harder than the spring and the joint limit gave way: segments slid 1.8x past it, leaving gaps
     stretch_fade = 0.15
     # the arm's reflex: how hard a muscle pushes toward the posture the brain asked for, as a share of its full force
-    # per whole reach of distance. An octopus arm holds 2/3 of its neurons and runs its own movements: the brain says
-    # where, the arm works out how. With raw force and springs this soft, a command of 0.07 already took a joint to its
-    # limit, so any small bias in the brain curled every arm into a ball. 1 = full force a whole reach away, the
-    # muscle's own scale. Tested against 0.3 and 3: at 0.3 a crawl by hand barely moved (0.2 cm/s), at 3 the arm got
-    # stiffer (a 0.05 N push at the tip bent it 2.8 cm, the relaxed arm 15, this 4.2) and slid further past its stretch
-    # limit (1.32x, this 1.18x). It still swims with the arms trailing (jet: 0.32 m/s on average, as relaxed arms did)
+    # per whole reach of distance, times how far from 0 the command is. An octopus arm holds 2/3 of its neurons and
+    # runs its own movements: the brain says where, the arm works out how. With raw force and springs this soft, a
+    # command of 0.07 already took a joint to its limit, so any small bias in the brain curled every arm into a ball.
+    # Firmness grows with the command so that 0 is limp: when 0 meant "hold the resting pose", the reflex fought the
+    # water and it swam as a stiff flying saucer, arms spread (4.5 W); limp, they trail behind like a real octopus's (0.7 W)
+    # and bend as much as the relaxed arm (a 0.05 N push at the tip: 15 cm). 1 = full force a whole reach away at full
+    # command, the muscle's own scale; 2 slid the arm further past its stretch limit (1.31x, this 1.16x)
     posture_gain = 1.0
     # rigidity: each arm muscle's command (its posture) averaged over about this long. Holding the same posture away
     # from rest keeps the average high; moving one way then the other (a stride, flailing) averages out near 0,
@@ -216,6 +227,7 @@ class OctopusEnv(gym.Env):
         self.longest = np.array([m.jnt_range[j, 1].sum() for j in arm_joints])
         self.arm_force_low, self.arm_force_high = m.actuator_ctrlrange[self.arm_muscles].T
         self.posture = self.rest_length.copy()
+        self.firmness = np.zeros(len(self.arm_muscles))
         self.commanded_activation = np.zeros(len(self.arm_muscles))
         self.held_command = np.zeros(len(self.arm_muscles))
         self.jet = m.actuator("jet").id
@@ -249,7 +261,7 @@ class OctopusEnv(gym.Env):
         self.step_count = 0
         self.previous_action = np.zeros(self.n_actions)
         self.mantle_water = 1.0
-        self.stamina = 1.0
+        self.stamina = self.np_random.uniform(MIN_START_STAMINA, MAX_START_STAMINA)
         self.relaxed_time = 0.0
         self.refilling = False
         self.held_command[:] = 0.0
@@ -265,6 +277,7 @@ class OctopusEnv(gym.Env):
         if not JET_ON:
             self.data.ctrl[self.siphon_motors] = 0.0  # stage 1: the siphon stays relaxed whatever the brain says
         self.posture = self._posture_target(wanted[self.arm_muscles])
+        self.firmness = np.abs(wanted[self.arm_muscles])  # 0 = limp, 1 = the full reflex
         # each arm muscle's command, -1 to 1, averaged over the last ~second (for the rigidity in the info dict)
         self.held_command += (wanted[self.arm_muscles] - self.held_command) * self.dt / self.rigidity_time
         position_before = self.data.xpos[self.torso].copy()
@@ -334,9 +347,10 @@ class OctopusEnv(gym.Env):
         return np.where(command >= 0, toward_longest, toward_shortest)
 
     def _reflex(self):
-        # the arm's reflex: push toward the posture, harder the further away, within what each muscle can pull
+        # the arm's reflex: push toward the posture, harder the further away and the firmer the command, within what
+        # each muscle can pull
         distance = self.posture - self.data.ten_length[self.arm_muscle_tendons]
-        force = self.posture_gain * distance / self.tendon_reach
+        force = self.posture_gain * self.firmness * distance / self.tendon_reach
         return np.clip(force, self.arm_force_low, self.arm_force_high)
 
     def _force_velocity(self, commanded):
