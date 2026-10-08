@@ -19,10 +19,17 @@ from world_octavus.environment import OctopusEnv
 CHECKPOINT = Path(__file__).resolve().parents[1] / "octavus.pt"
 
 
+senses = {}  # the average and spread of each sense the brain learned with (saved with it by train.py)
+
+
 def load_latest(brain):
     try:
-        brain.load_state_dict(torch.load(CHECKPOINT))
+        saved = torch.load(CHECKPOINT)
+        brain.load_state_dict(saved["brain"])
+        senses.update(saved["senses"])
         return True
+    except KeyError:
+        raise SystemExit(f"{CHECKPOINT.name} is from before the senses were scaled: train again")
     except RuntimeError as error:
         if "size mismatch" in str(error):
             raise SystemExit(f"{CHECKPOINT.name} was trained on a different body: train again with the current one")
@@ -42,7 +49,9 @@ speeds = []
 
 while env.viewer is None or env.viewer.is_running():
     with torch.no_grad():
-        draw_y, _ = brain.act(torch.tensor(x, dtype=torch.float32))  # a draw, like every move in training
+        # every sense scaled as in training: the brain only understands them that way
+        x_seen = ((torch.tensor(x, dtype=torch.float32) - senses["mean"]) / (senses["var"] + 1e-8).sqrt()).clamp(-10, 10)
+        draw_y, _ = brain.act(x_seen)  # a draw, like every move in training
     x, _, terminated, truncated, info = env.step(draw_y.numpy())
     speeds.append(info["speed"])
     if terminated or truncated:
