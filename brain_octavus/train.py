@@ -19,8 +19,10 @@ if Path("octavus.pt").exists():
 optimizer = torch.optim.Adam(brain.parameters(), lr=3e-4)
 n_steps = 2048 #steps before learn
 n_laps = 300000 #time of training ctrl+c to stop (saves every 10 laps)
-gamma = 0.99
+gamma = 0.995
 #gamma = future grades discount
+#0.995: a reward 5 s (200 steps) later still counts 0.37 in an action's grade, 0.99 only reached ~2.5 s:
+#the hard tilted jet looked good (2 s rising) and the flip at 3 s barely counted. 5 s = its whole jet breath
 clip = 0.2 #PPO small step: an action's chance changes at most 20% per lap
 minibatch_size = 64
 x, _ = env.reset(seed=0)

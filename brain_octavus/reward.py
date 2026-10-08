@@ -1,8 +1,8 @@
 #the stage, set by hand: how much of the metabolic energy it pays (1 = all of it)
-#0 for the start of stage 1: a flailing newborn then pays only ~0.05 per step (jerk, spin, rigidity) against 0 for
-#standing still, so it has no reason to freeze before it learns to crawl (at 0.2 it paid ~0.4, at 1 ~1.9).
-#Raise it by hand once it crawls, so it learns to crawl cheaply
-ENERGY_SHARE = 0.0
+#0.2 now that it crawls (posture arms, jet on): flailing with random jets pays ~0.47 per step, its crawl (+0.40
+#of progress) ~0.17, a full jet (+3.7) ~0.39, standing still 0, so crawling still beats standing still.
+#At 1 its crawl would cost 0.86, more than it earns, and it would freeze. Raise it by hand as the crawl gets cheaper
+ENERGY_SHARE = 0.2
 
 
 def reward(info):
@@ -33,10 +33,12 @@ def reward(info):
     #(charging every contraction in full taught a newborn that moving its arms at all was too expensive)
     #0.9: rigid at 0.65 costs ~0.26 per step and a ball ~0.10, standing still 0: both cheats score below doing nothing
     rigidity = 0.9 * info["rigidity"]
+    #upside down lying on the floor: swimming it can tilt any way (like a missile, as real octopuses do), but on the
+    #floor upside down it can't crawl and its jet points at the floor. It jetted hard, flipped and lay there 70-80% of the time
+    #airborne = nothing touches the floor (arms don't collide with each other), so tilted in the water is free
+    #0.3: ~25% of a good swim up (+1.2 per step), taken seriously. It still doesn't end the episode (dying early used to be a way out)
+    upside_down = 0.3 * (info["flipped"] and not info["airborne"])
     #no rule about keeping the tips on the floor: in water swimming is a healthy octopus move
-    score = progress - 0.05 * jerk - 0.05 * turn - energy - rigidity
-
-    #no extra cost for flipping over, and it doesn't end the episode: upside down it can't crawl,
-    #so the normal costs keep running until it rights itself
+    score = progress - 0.05 * jerk - 0.05 * turn - energy - rigidity - upside_down
 
     return score
