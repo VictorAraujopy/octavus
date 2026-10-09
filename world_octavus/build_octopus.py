@@ -220,8 +220,10 @@ def octopus(skin=""):
            At rest it points 20 degrees down; the tilt adds up to 45 degrees either way, so like a real octopus it can
            steer the jet up or down (a rudder to keep the head from nosediving). No collision: it only aims the jet -->
       <body name="siphon" pos="0 0 -0.012" gravcomp="{BUOYANCY}">
-        <joint name="siphon_aim" axis="0 0 1" range="-180 180" damping="0.5"/>
-        <joint name="siphon_tilt" axis="0 1 0" range="-45 45" damping="0.5"/>
+        <!-- damping and the muscles below sized for a 10 g funnel: it used to swing with 4 N.m (5x an arm's base muscle)
+             against damping 0.5, burning ~120 W just aiming. 100x less of both: it swings just as fast (8 rad/s) for 1/100 -->
+        <joint name="siphon_aim" axis="0 0 1" range="-180 180" damping="0.005"/>
+        <joint name="siphon_tilt" axis="0 1 0" range="-45 45" damping="0.005"/>
         <!-- the siphon's mass (what the aim and tilt muscles move), invisible -->
         <geom type="capsule" fromto="0.032 0 0 0.064 0 -0.0116" size="0.008" contype="0" conaffinity="0" fluidshape="none" rgba="0 0 0 0"/>
         <!-- what shows: just the funnel's mouth, barely out from under the head -->
@@ -237,8 +239,8 @@ def octopus(skin=""):
 {tendons}  </tendon>
 
   <actuator>
-{actuators}    <position name="siphon_aim" joint="siphon_aim" kp="8" kv="0.3" forcerange="-4 4" inheritrange="1"/>
-    <position name="siphon_tilt" joint="siphon_tilt" kp="8" kv="0.3" forcerange="-4 4" inheritrange="1"/>
+{actuators}    <position name="siphon_aim" joint="siphon_aim" kp="0.08" kv="0.003" forcerange="-0.04 0.04" inheritrange="1"/>
+    <position name="siphon_tilt" joint="siphon_tilt" kp="0.08" kv="0.003" forcerange="-0.04 0.04" inheritrange="1"/>
     <!-- up to 32 N, set by how it swims: mantle first with the arms relaxed, like a common octopus (Huffard 2006), its top
          speed is ~1 m/s, the measured one (Wells, via Huffard 2006). It was 40 N with stiff arm springs; floppy arms drag less.
          The environment stops it when the mantle is empty -->
