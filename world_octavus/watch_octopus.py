@@ -55,7 +55,8 @@ while env.viewer is None or env.viewer.is_running():
     x, _, terminated, truncated, info = env.step(draw_y.numpy())
     speeds.append(info["speed"])
     if terminated or truncated:
-        print(f"{np.mean(speeds):+.3f} m/s in the direction, {sum(speeds) * env.dt:+.2f} m in {len(speeds) * env.dt:.0f} s"
+        print(f"{np.mean(speeds):+.3f} m/s in the direction, {sum(speeds) * env.dt:+.2f} m in {len(speeds) * env.dt:.0f} s, "
+              f"{info['targets_reached']} targets reached"
               f"{', flipped over' if info['flipped'] else ''}")
         load_latest(brain)
         x, _ = env.reset()

@@ -1,7 +1,8 @@
 #the stage, set by hand: how much of the metabolic energy it pays (1 = all of it)
-#0 from zero: a newborn at 0.2 with the jet on paid ~0.5 per step against 0 for standing still, and it froze.
-#Raise it by hand once it crawls and swims (at 0.2 a trained brain's crawl paid ~0.17 against +0.40 of progress;
-#at 1 it would pay more than it earns and freeze)
+#0: off. A night at 0.5 with targets made it worse by its own score (+0.65 -> +0.04 per step, targets 1.2 -> 0.6,
+#arms curling, still out of breath), not cheaper: with nothing working without the jet, keeping still was the least
+#bad. Learn the targets and the floor first; later, if it wastes effort, a small effort cost like the benchmarks'
+#(not the whole metabolic bill)
 ENERGY_SHARE = 0.0
 
 
@@ -38,7 +39,10 @@ def reward(info):
     #airborne = nothing touches the floor (arms don't collide with each other), so tilted in the water is free
     #0.3: ~25% of a good swim up (+1.2 per step), taken seriously. It still doesn't end the episode (dying early used to be a way out)
     upside_down = 0.3 * (info["flipped"] and not info["airborne"])
+    #reaching the target is the biggest step forward there is, so it is the one prize (the next target is always 1.5 m+
+    #away, so it can't be farmed). 300: ~1/3 of what the ~2 m trip itself earns in progress (~800), taken seriously
+    arrival = 300.0 * info["reached"]
     #no rule about keeping the tips on the floor: in water swimming is a healthy octopus move
-    score = progress - 0.05 * jerk - 0.05 * turn - energy - rigidity - upside_down
+    score = progress - 0.05 * jerk - 0.05 * turn - energy - rigidity - upside_down + arrival
 
     return score

@@ -1,10 +1,12 @@
 """
-Octavus environment in the Gymnasium format: the octopus has to move in a direction, along the sea floor or up.
+Octavus environment in the Gymnasium format: the octopus has to reach targets, along the sea floor or up in the water.
 
-Each episode a direction is drawn at random around the octopus, between MIN_CLIMB and MAX_CLIMB degrees above the
-floor (both 0 = flat), and it has to go that way: there is no target to reach,
-the episode just lasts 20 s. The brain sees the direction in its own body's frame (3 numbers, length 1), so it knows
-which way to go however it is turned. The red ball only shows the direction in the viewer: it stays 1 m ahead that way.
+With TARGET_ON, each episode a target appears around the octopus (FLOOR_TARGET_SHARE of them on the floor and close,
+the others MIN/MAX_TARGET_DISTANCE away along the floor and MIN/MAX_TARGET_HEIGHT up), and once the head gets within TARGET_REACHED of it the next one appears; the red ball is
+the target. Without it, a direction is drawn instead (MIN_CLIMB to MAX_CLIMB degrees above the floor) and it just has
+to keep going that way; the red ball stays 1 m ahead. Either way the episode lasts 20 s, and the brain sees "which
+way" in its own body's frame (3 numbers, length 1: toward the target, or the direction), so it knows where to go
+however it is turned.
 Nothing changes by itself from one episode to the next: what the octopus has to learn is set by hand.
 Stage 1 is crawling: with JET_ON = False the whole siphon ignores its commands (aim, tilt and jet), so the only way
 to move is with the arms. Turn it on, by hand, when it crawls.
@@ -40,7 +42,7 @@ holding suckers nothing, the jet its hydrodynamic power at 25%, plus a common oc
 
 The reward is not decided here: the trainer passes a function reward_fn(info) -> float,
 and the environment hands over the facts of each step in the info dict:
-speed (m/s in the episode's direction, negative going the other way), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same posture away from rest over the last ~second; 0 = limp, or moving one way then the other), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
+speed (m/s in the episode's direction, or toward the target; negative going the other way), reached (it got to the target this step), targets_reached (this episode), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same posture away from rest over the last ~second; 0 = limp, or moving one way then the other), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
 
 Watch the octopus moving randomly (on macOS the viewer needs mjpython):
     uv run mjpython world_octavus/environment.py
@@ -57,20 +59,34 @@ import numpy as np
 from world_octavus.build_octopus import ARM_LENGTH, SECTIONS, SEGMENTS, section_of, segment_radius
 
 XML = Path(__file__).resolve().parent / "octopus.xml"
-# the stages, set by hand, one at a time: (1) crawl flat, jet off; (2) jet on; (3) directions up; then the energy.
-# Starting from zero straight at stage 3 froze it: its first random jets flipped it over, it learned the jet only
+# the stages, set by hand, one at a time: (1) flat directions with the jet on, like a real octopus, which hatches
+# swimming by jet and only takes to crawling weeks later; (2) directions up; then the energy. Starting from zero
+# straight at stage 2 (with the old trainer) froze it: its first random jets flipped it over, it learned the jet only
 # cost, stopped using it, and without the jet it couldn't go up
-JET_ON = False  # stage 1: crawl with the arms only. True = the siphon works (jet, aim and tilt)
+JET_ON = True  # the siphon works (jet, aim and tilt). False = crawl with the arms only
 # how many degrees above the floor the episode's direction points, drawn evenly between these two. Both 0 = always flat,
-# a crawl; above 0 it has to swim up, which only the jet can do (the arms have nothing to climb). For stage 3, 30-60:
+# a crawl; above 0 it has to swim up, which only the jet can do (the arms have nothing to climb). Stage 2, 30-60:
 # always a diagonal up, never flat enough to crawl there, never so steep that which way around it doesn't matter
-MIN_CLIMB = 0
-MAX_CLIMB = 0
+MIN_CLIMB = 30
+MAX_CLIMB = 60
 # how full the jet's stamina starts each episode, drawn evenly between these two. Both 1 = always rested. Starting
 # full, it ran out at ~13 s and it just stopped for the last 7 s: starting anywhere from empty, it practises what to
 # do once the siphon is spent with a whole episode ahead, and it sees its stamina, so it can tell the two cases apart
 MIN_START_STAMINA = 0.0
 MAX_START_STAMINA = 1.0
+# stage 3: a point to reach instead of a direction to keep going (the climb buttons above only count when it is off).
+# "Which way" now points from the head to the target, so it has to turn as it passes by, and to go down as well as up
+TARGET_ON = True
+MIN_TARGET_DISTANCE = 1.5  # meters along the floor from the head, when the target appears
+MAX_TARGET_DISTANCE = 3.0
+MIN_TARGET_HEIGHT = 0.0  # meters above the head lying on the floor: from on the floor to well up in the water
+MAX_TARGET_HEIGHT = 2.0
+# this share of the targets lie on the floor instead, and closer, within a crawl's reach in an episode (~5 cm/s for
+# 20 s): with nearly all of them up in the water it only swam, and never used the floor
+FLOOR_TARGET_SHARE = 0.5
+MIN_FLOOR_TARGET_DISTANCE = 0.5
+MAX_FLOOR_TARGET_DISTANCE = 1.5
+TARGET_REACHED = 0.2  # meters from the head: close enough, the next target appears
 MUSCLES = ("bend_up", "bend_side", "twist", "stretch")
 
 
@@ -241,6 +257,8 @@ class OctopusEnv(gym.Env):
         self.refilling = False
         self.dt = m.opt.timestep * self.physics_steps
         self.direction = np.array([1.0, 0.0, 0.0])
+        self.target = np.zeros(3)
+        self.targets_reached = 0
 
         self.action_space = gym.spaces.Box(-1.0, 1.0, (self.n_actions,), np.float32)
         observation_size = self._observe().size
@@ -252,11 +270,16 @@ class OctopusEnv(gym.Env):
         self.data.qpos[:] = self.resting_pose
         self.data.qpos[self.joint_qpos] += self.np_random.uniform(-1, 1, self.joint_noise.size) * self.joint_noise
 
-        angle = self.np_random.uniform(0, 2 * np.pi)  # which way around the octopus
-        climb = np.radians(self.np_random.uniform(MIN_CLIMB, MAX_CLIMB))  # how far above the floor
-        self.direction = np.array([np.cos(climb) * np.cos(angle), np.cos(climb) * np.sin(angle), np.sin(climb)])
+        if not TARGET_ON:
+            angle = self.np_random.uniform(0, 2 * np.pi)  # which way around the octopus
+            climb = np.radians(self.np_random.uniform(MIN_CLIMB, MAX_CLIMB))  # how far above the floor
+            self.direction = np.array([np.cos(climb) * np.cos(angle), np.cos(climb) * np.sin(angle), np.sin(climb)])
 
         mujoco.mj_forward(self.model, self.data)
+        self.targets_reached = 0
+        if TARGET_ON:
+            self._new_target()  # placed from the head, so after mj_forward has put the body in place
+            self._aim()
         self._place_marker()
         self.step_count = 0
         self.previous_action = np.zeros(self.n_actions)
@@ -294,11 +317,20 @@ class OctopusEnv(gym.Env):
         self.step_count += 1
 
         moved = self.data.xpos[self.torso] - position_before
+        speed = moved @ self.direction / self.dt  # toward where it was asked to go during this step
+        reached = TARGET_ON and np.linalg.norm(self.target - self.data.xpos[self.torso]) < TARGET_REACHED
+        if TARGET_ON:
+            if reached:
+                self.targets_reached += 1
+                self._new_target()
+            self._aim()  # the head moved: "which way" for the next step
         self._place_marker()
         flipped = self.data.xmat[self.torso][8] < 0
         power, holding_power = self._metabolic_power()
         info = {
-            "speed": moved @ self.direction / self.dt,
+            "speed": speed,
+            "reached": reached,
+            "targets_reached": self.targets_reached,
             "flipped": flipped,
             "action": action,
             "previous_action": self.previous_action,
@@ -443,9 +475,30 @@ class OctopusEnv(gym.Env):
         seen = rotation.T @ self.direction
         return seen[0] / (np.hypot(seen[0], seen[1]) + 1e-8)
 
+    def _new_target(self):
+        # somewhere around the head: on the floor and close, or up in the water and further
+        angle = self.np_random.uniform(0, 2 * np.pi)
+        if self.np_random.uniform() < FLOOR_TARGET_SHARE:
+            distance = self.np_random.uniform(MIN_FLOOR_TARGET_DISTANCE, MAX_FLOOR_TARGET_DISTANCE)
+            height = 0.0
+        else:
+            distance = self.np_random.uniform(MIN_TARGET_DISTANCE, MAX_TARGET_DISTANCE)
+            height = self.np_random.uniform(MIN_TARGET_HEIGHT, MAX_TARGET_HEIGHT)
+        head = self.data.xpos[self.torso]
+        self.target = np.array([head[0] + distance * np.cos(angle), head[1] + distance * np.sin(angle),
+                                self.resting_height + height])
+
+    def _aim(self):
+        # "which way" = from the head straight to the target, length 1
+        to_target = self.target - self.data.xpos[self.torso]
+        self.direction = to_target / np.linalg.norm(to_target)
+
     def _place_marker(self):
-        # the red ball, only for the eyes: marker_ahead from the head along the direction, so it rises when the direction does
-        self.data.mocap_pos[0] = self.data.xpos[self.torso] + self.marker_ahead * self.direction
+        # the red ball, only for the eyes: the target itself, or (no target) marker_ahead from the head along the direction
+        if TARGET_ON:
+            self.data.mocap_pos[0] = self.target
+        else:
+            self.data.mocap_pos[0] = self.data.xpos[self.torso] + self.marker_ahead * self.direction
 
     def _observe(self):
         rotation = self.data.xmat[self.torso].reshape(3, 3)
