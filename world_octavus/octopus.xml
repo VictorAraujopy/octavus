@@ -264,7 +264,10 @@
         <!-- what shows: just the funnel's mouth, barely out from under the head -->
         <geom class="visual" material="skin" type="capsule" fromto="0.038 0 0 0.0432 0 -0.002" size="0.0036"/>
         <!-- the jet pushes the body opposite to where the water leaves: backwards and a bit up -->
-        <site name="jet" zaxis="-0.94 0 0.342" size="0.004" rgba="0 0 0 0"/>
+        <!-- where the push acts: 1.4 cm lower, so its line passes ~0.4 cm from the lying octopus's center of mass instead
+             of 1.5 cm. Higher, a full jet twisted it with 0.49 N.m against ~0.05 N.m from its weight in water: random jets
+             flipped a newborn 38% of the time on the floor (now 14%), and on its back it learned to roll along curled up -->
+        <site name="jet" pos="-0.004 0 -0.014" zaxis="-0.94 0 0.342" size="0.004" rgba="0 0 0 0"/>
       </body>
     </body>
   </worldbody>

@@ -37,12 +37,13 @@ def reward(info):
     #upside down lying on the floor: swimming it can tilt any way (like a missile, as real octopuses do), but on the
     #floor upside down it can't crawl and its jet points at the floor. It jetted hard, flipped and lay there 70-80% of the time
     #airborne = nothing touches the floor (arms don't collide with each other), so tilted in the water is free
-    #0.3: ~25% of a good swim up (+1.2 per step), taken seriously. It still doesn't end the episode (dying early used to be a way out)
-    upside_down = 0.3 * (info["flipped"] and not info["airborne"])
-    #reaching the target is the biggest step forward there is, so it is the one prize (the next target is always 1.5 m+
-    #away, so it can't be farmed). 300: ~1/3 of what the ~2 m trip itself earns in progress (~800), taken seriously
-    arrival = 300.0 * info["reached"]
+    #1.0: more than rolling along on its back earns (~0.46 per step): at 0.3 it still paid off, so it learned to curl up and
+    #roll on its back to the targets. It still doesn't end the episode (dying early used to be a way out)
+    upside_down = 1.0 * (info["flipped"] and not info["airborne"])
+    #no prize for reaching the target: the trip there already pays ~400 per meter. A +300 prize put ~1/3 of the whole
+    #learning signal on the 2% of steps just before an arrival, and the critic can't see it coming (the brain gets
+    #"which way", not "how far"): twice it drifted into curling up into a ball with it on
     #no rule about keeping the tips on the floor: in water swimming is a healthy octopus move
-    score = progress - 0.05 * jerk - 0.05 * turn - energy - rigidity - upside_down + arrival
+    score = progress - 0.05 * jerk - 0.05 * turn - energy - rigidity - upside_down
 
     return score
