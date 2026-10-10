@@ -62,7 +62,7 @@ class Octavus_arms_brain(nn.Module):
     def __init__(self):
         super().__init__()
 
-        n_arms, n_arm_x, n_body_x, n_arm_y, n_jet_y = 8, 36, 17, 20, 3
+        n_arms, n_arm_x, n_body_x, n_arm_y, n_jet_y = 8, 36, 18, 20, 3
         #numbers the central brain sends to each arm: a short order, like "reach that way" or "grip"
         n_order = 8
 
@@ -74,7 +74,7 @@ class Octavus_arms_brain(nn.Module):
         angles = torch.deg2rad(22.5 + 45 * torch.arange(n_arms))
         self.register_buffer("arm_position", torch.stack([angles.cos(), angles.sin()], dim=-1))
 
-        n_x = n_arms * n_arm_x + n_body_x  #305: everything the octopus feels
+        n_x = n_arms * n_arm_x + n_body_x  #306: everything the octopus feels (the last one: how far the target is)
 
         #central brain: sees everything
         self.central = nn.Sequential(
@@ -143,8 +143,7 @@ class Octavus_arms_brain(nn.Module):
 
 
 if __name__ == "__main__":
-    #quick check: both brains take the 305 numbers and answer 163 commands
-    x = torch.zeros(305)
-    for brain in (Octavus_brain(), Octavus_arms_brain()):
-        y, _ = brain.act(x)
+    #quick check: both brains answer 163 commands (the old single network still takes the 305 senses of before)
+    for brain, n_x in ((Octavus_brain(), 305), (Octavus_arms_brain(), 306)):
+        y, _ = brain.act(torch.zeros(n_x))
         print(type(brain).__name__, "| commands:", y.shape[0], "| weights:", sum(p.numel() for p in brain.parameters()))

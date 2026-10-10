@@ -14,11 +14,12 @@ to move is with the arms. Turn it on, by hand, when it crawls.
 Each arm is a soft tentacle (see build_octopus.py): 16 segments in 4 sections, and each section has 4 muscles
 (bend up/down, bend sideways, twist, stretch/shorten) plus the suckers of its segments.
 
-Observation (305 numbers):
+Observation (306 numbers):
     obs[:288].reshape(8, 4, 9) -> per arm, per section: where its 4 muscles are (-1 to 1 of their reach),
                                   how fast they move, and how hard the section touches something
     obs[288:]                  -> body: direction (3), up (3), velocity (3), spin (3), height (1),
-                                  siphon aim (1), siphon tilt (1), mantle water (1), jet stamina (1)
+                                  siphon aim (1), siphon tilt (1), mantle water (1), jet stamina (1),
+                                  distance to the target (1, in target_distance_scale units; 0 without a target)
 
 Action (163 numbers between -1 and 1), the arms first and the siphon last:
     action[:160].reshape(8, 4, 5) -> per arm, per section: bend_up, bend_side, twist, stretch, sucker
@@ -104,6 +105,10 @@ class OctopusEnv(gym.Env):
     touch_scale = 100.0  # a section gripping with its suckers presses up to ~90 N
     tip_touch = 0.005  # newtons: a resting tip lies on the floor with ~0.08 N, a tip in the water with 0
     spin_scale = 5.0
+    # how far the target is, last of all the senses: with only "which way", the critic couldn't tell a target 30 cm
+    # away from one 3 m away, or an easy one from one out of reach, and its grades were mostly noise (it drifted into
+    # a ball three times on targets). 3 m: the farthest targets read ~1
+    target_distance_scale = 3.0
     # the mantle's jet cycle: 0.44 s squeezing, ~0.4 s refilling (measured in cuttlefish, Gladman & Askew 2022:
     # the octopus's own cycle wasn't found)
     jet_empty_time = 0.44
@@ -519,6 +524,7 @@ class OctopusEnv(gym.Env):
                   self.data.qpos[self.siphon_tilt_qpos] / self.siphon_tilt_reach,
                   self.mantle_water,
                   self.stamina]
+        target_distance = [np.linalg.norm(self.target - position) / self.target_distance_scale if TARGET_ON else 0.0]
 
         return np.concatenate([
             per_section.ravel(),
@@ -528,6 +534,7 @@ class OctopusEnv(gym.Env):
             torso_spin,
             height,
             siphon,
+            target_distance,
         ]).astype(np.float32)
 
 
