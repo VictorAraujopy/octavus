@@ -9,14 +9,13 @@ ENERGY_SHARE = 0.0
 def reward(info):
     progress = info["speed"]
     #speed = how fast it moves in the episode's direction (m/s), negative going the other way
-    #no speed cap: going faster is paid for with metabolic energy
+    #no speed cap: what can make going faster cost is the metabolic energy (off for now, ENERGY_SHARE = 0)
     #x10: moving that way is worth spending on (at x1 its progress was ~4% of its energy cost and it ignored it;
     #moving back and forth still nets 0)
     progress = 10 * progress
 
     jerk = ((info["action"] - info["previous_action"]) **2).mean()
-    #no rules for height, bouncing or leaving the floor: in water swimming is allowed,
-    #and the metabolic energy decides if it's worth it
+    #no rules for height, bouncing or leaving the floor: in water swimming is allowed
     #spinning costs a little (spinning in place was an old cheat), capped so a flailing newborn
     #isn't fined into standing still
     turn = min(info["spin"] ** 2, 0.5)
@@ -41,8 +40,8 @@ def reward(info):
     #roll on its back to the targets. It still doesn't end the episode (dying early used to be a way out)
     upside_down = 1.0 * (info["flipped"] and not info["airborne"])
     #no prize for reaching the target: the trip there already pays ~400 per meter. A +300 prize put ~1/3 of the whole
-    #learning signal on the 2% of steps just before an arrival, and the critic can't see it coming (the brain gets
-    #"which way", not "how far"): twice it drifted into curling up into a ball with it on
+    #learning signal on the 2% of steps just before an arrival, and the critic couldn't see it coming (back then the
+    #brain got "which way", not "how far"): twice it drifted into curling up into a ball with it on
     #no rule about keeping the tips on the floor: in water swimming is a healthy octopus move
     score = progress - 0.05 * jerk - 0.05 * turn - energy - rigidity - upside_down
 

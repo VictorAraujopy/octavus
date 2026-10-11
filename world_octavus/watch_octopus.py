@@ -1,7 +1,7 @@
 """
 Watch the trained octopus: loads octavus.pt and lets the brain drive the body in the viewer, the way training sees
 it: every move is a draw (what the brain believes in most plus its random tries).
-The red ball shows the episode's direction (it stays 1 m ahead of the octopus that way).
+The red ball is the target (without targets, it shows the episode's direction, 1 m ahead).
 The brain is reloaded at the start of every episode, so you can keep this open while training runs
 and see it improve without restarting.
 
@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from brain_octavus.brain import Octavus_arms_brain
+from brain_octavus.train import scale
 from world_octavus.environment import OctopusEnv
 
 CHECKPOINT = Path(__file__).resolve().parents[1] / "octavus.pt"
@@ -23,19 +24,16 @@ senses = {}  # the average and spread of each sense the brain learned with (save
 
 
 def load_latest(brain):
+    # caught while the trainer was writing it (or gone for a moment): it keeps the weights it had
     try:
         saved = torch.load(CHECKPOINT)
         brain.load_state_dict(saved["brain"])
         senses.update(saved["senses"])
-        return True
-    except KeyError:
-        raise SystemExit(f"{CHECKPOINT.name} is from before the senses were scaled: train again")
     except RuntimeError as error:
         if "size mismatch" in str(error):
             raise SystemExit(f"{CHECKPOINT.name} was trained on a different body: train again with the current one")
-        return False  # caught while the trainer was writing it: keep the previous weights
     except (FileNotFoundError, EOFError):
-        return False
+        pass
 
 
 if not CHECKPOINT.exists():
@@ -50,7 +48,7 @@ speeds = []
 while env.viewer is None or env.viewer.is_running():
     with torch.no_grad():
         # every sense scaled as in training: the brain only understands them that way
-        x_seen = ((torch.tensor(x, dtype=torch.float32) - senses["mean"]) / (senses["var"] + 1e-8).sqrt()).clamp(-10, 10)
+        x_seen = scale(torch.tensor(x, dtype=torch.float32), senses)
         draw_y, _ = brain.act(x_seen)  # a draw, like every move in training
     x, _, terminated, truncated, info = env.step(draw_y.numpy())
     speeds.append(info["speed"])

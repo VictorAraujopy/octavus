@@ -25,6 +25,11 @@ minibatch_size = 64
 exploration_cap = math.log(0.5) #exploration is stored as a log: exp(log(0.5)) = 0.5
 
 
+def scale(raw_x, stats):
+    #each sense as "how far from normal", by its running average and spread (stats). The watch uses it too, to see as training does
+    return ((raw_x - stats["mean"]) / (stats["var"] + 1e-8).sqrt()).clamp(-10, 10)
+
+
 def normalize(raw_x):
     #updates the running average and spread with these readings (one row per octopus), then hands them scaled by them
     raw_x = torch.as_tensor(raw_x, dtype=torch.float32)
@@ -33,7 +38,7 @@ def normalize(raw_x):
         difference = reading - senses["mean"]
         senses["mean"] += difference / senses["count"]
         senses["var"] += (difference * (reading - senses["mean"]) - senses["var"]) / senses["count"]
-    return ((raw_x - senses["mean"]) / (senses["var"] + 1e-8).sqrt()).clamp(-10, 10)
+    return scale(raw_x, senses)
 
 
 #each parallel octopus runs in a new Python process that reads this file again: only the first one may train

@@ -7,9 +7,9 @@ the target. Without it, a direction is drawn instead (MIN_CLIMB to MAX_CLIMB deg
 to keep going that way; the red ball stays 1 m ahead. Either way the episode lasts 20 s, and the brain sees "which
 way" in its own body's frame (3 numbers, length 1: toward the target, or the direction), so it knows where to go
 however it is turned.
-Nothing changes by itself from one episode to the next: what the octopus has to learn is set by hand.
-Stage 1 is crawling: with JET_ON = False the whole siphon ignores its commands (aim, tilt and jet), so the only way
-to move is with the arms. Turn it on, by hand, when it crawls.
+Nothing changes by itself from one episode to the next: what the octopus has to learn is set by hand, with the
+buttons at the top. With JET_ON = False the whole siphon ignores its commands (aim, tilt and jet), so the only way
+to move is with the arms.
 
 Each arm is a soft tentacle (see build_octopus.py): 16 segments in 4 sections, and each section has 4 muscles
 (bend up/down, bend sideways, twist, stretch/shorten) plus the suckers of its segments.
@@ -43,30 +43,31 @@ holding suckers nothing, the jet its hydrodynamic power at 25%, plus a common oc
 
 The reward is not decided here: the trainer passes a function reward_fn(info) -> float,
 and the environment hands over the facts of each step in the info dict:
-speed (m/s in the episode's direction, or toward the target; negative going the other way), reached (it got to the target this step), targets_reached (this episode), flipped, action, previous_action, vertical_speed, height, spin, power (metabolic watts), holding_power (the part of power spent holding force, in any contraction), rigidity (0 to 1: how much each arm muscle has been holding the same posture away from rest over the last ~second; 0 = limp, or moving one way then the other), mass (kg), tips_touching (0 to 1: arms whose last section touches something), airborne (nothing touching the floor), facing (1 = eyes pointing the episode's direction, -1 = back to it), dt.
+speed (m/s in the episode's direction, or toward the target; negative going the other way), targets_reached (this
+episode), flipped, action, previous_action, spin, power (metabolic watts), rigidity (0 to 1: how much each arm muscle
+has been holding the same posture away from rest over the last ~second; 0 = limp, or moving one way then the other),
+mass (kg), airborne (nothing touching the floor).
 
 Watch the octopus moving randomly (on macOS the viewer needs mjpython):
     uv run mjpython world_octavus/environment.py
 """
 
 import time
-from pathlib import Path
 
 import gymnasium as gym
 import mujoco
 import mujoco.viewer
 import numpy as np
 
-from world_octavus.build_octopus import ARM_LENGTH, SECTIONS, SEGMENTS, section_of, segment_radius
+from world_octavus.build_octopus import ARM_LENGTH, SECTIONS, SEGMENTS, XML, section_of, segment_radius
 
-XML = Path(__file__).resolve().parent / "octopus.xml"
-# the stages, set by hand, one at a time: (1) flat directions with the jet on, like a real octopus, which hatches
-# swimming by jet and only takes to crawling weeks later; (2) directions up; then the energy. Starting from zero
-# straight at stage 2 (with the old trainer) froze it: its first random jets flipped it over, it learned the jet only
-# cost, stopped using it, and without the jet it couldn't go up
+# the buttons, set by hand, one at a time and measuring in between. A new brain starts at the easiest: flat
+# directions, no jet, no energy (JET_ON False, both climbs 0, TARGET_ON False); then the jet, directions up, targets.
+# Starting from zero straight at the hardest (jet, directions up, energy; with the old trainer) froze it: its first
+# random jets flipped it over, it learned the jet only cost, stopped using it, and without the jet it couldn't go up
 JET_ON = True  # the siphon works (jet, aim and tilt). False = crawl with the arms only
 # how many degrees above the floor the episode's direction points, drawn evenly between these two. Both 0 = always flat,
-# a crawl; above 0 it has to swim up, which only the jet can do (the arms have nothing to climb). Stage 2, 30-60:
+# a crawl; above 0 it has to swim up, which only the jet can do (the arms have nothing to climb). 30-60:
 # always a diagonal up, never flat enough to crawl there, never so steep that which way around it doesn't matter
 MIN_CLIMB = 30
 MAX_CLIMB = 60
@@ -75,7 +76,7 @@ MAX_CLIMB = 60
 # do once the siphon is spent with a whole episode ahead, and it sees its stamina, so it can tell the two cases apart
 MIN_START_STAMINA = 0.0
 MAX_START_STAMINA = 1.0
-# stage 3: a point to reach instead of a direction to keep going (the climb buttons above only count when it is off).
+# a point to reach instead of a direction to keep going (the climb buttons above only count when it is off).
 # "Which way" now points from the head to the target, so it has to turn as it passes by, and to go down as well as up
 TARGET_ON = True
 MIN_TARGET_DISTANCE = 1.5  # meters along the floor from the head, when the target appears
@@ -103,7 +104,6 @@ class OctopusEnv(gym.Env):
     # keep every observation number close to 1, so the brain's Tanh layers don't saturate
     muscle_speed_time = 0.1  # a muscle crossing its whole reach in 0.1 s reads 1
     touch_scale = 100.0  # a section gripping with its suckers presses up to ~90 N
-    tip_touch = 0.005  # newtons: a resting tip lies on the floor with ~0.08 N, a tip in the water with 0
     spin_scale = 5.0
     # how far the target is, last of all the senses: with only "which way", the critic couldn't tell a target 30 cm
     # away from one 3 m away, or an easy one from one out of reach, and its grades were mostly noise (it drifted into
@@ -331,25 +331,17 @@ class OctopusEnv(gym.Env):
             self._aim()  # the head moved: "which way" for the next step
         self._place_marker()
         flipped = self.data.xmat[self.torso][8] < 0
-        power, holding_power = self._metabolic_power()
         info = {
             "speed": speed,
-            "reached": reached,
             "targets_reached": self.targets_reached,
             "flipped": flipped,
             "action": action,
             "previous_action": self.previous_action,
-            "vertical_speed": self.data.qvel[2],
-            "height": self.data.xpos[self.torso][2],
             "spin": self.data.qvel[5],
-            "power": power,
-            "holding_power": holding_power,
+            "power": self._metabolic_power(),
             "rigidity": float(np.mean(self.held_command ** 2)),
             "mass": self.mass,
-            "tips_touching": (self._section_touch()[:, -1] > self.tip_touch).mean(),
             "airborne": self.data.ncon == 0,
-            "facing": self._facing(),
-            "dt": self.dt,
         }
         reward = self.reward_fn(info) if self.reward_fn else 0.0
         self.previous_action = action
@@ -436,8 +428,7 @@ class OctopusEnv(gym.Env):
         activation[self.arm_muscles] = self.commanded_activation
         activation = activation[self.muscles]
         holding = self.holding_rate * (activation ** 2 * self.muscle_mass[self.muscles]).sum()
-        total = muscles + holding + self._jet_power() / self.muscle_efficiency + self.basal_power
-        return total, holding
+        return muscles + holding + self._jet_power() / self.muscle_efficiency + self.basal_power
 
     def _squirt(self):
         # the mantle is a pump: it squirts while it has water and only refills once the jet has been relaxed
@@ -473,12 +464,6 @@ class OctopusEnv(gym.Env):
 
     def _section_touch(self):
         return (self.touch_to_section @ self.data.sensordata).reshape(self.n_arms, SECTIONS)
-
-    def _facing(self):
-        # cosine of the angle between where the eyes point (the body's +x) and the episode's direction, on the floor plane
-        rotation = self.data.xmat[self.torso].reshape(3, 3)
-        seen = rotation.T @ self.direction
-        return seen[0] / (np.hypot(seen[0], seen[1]) + 1e-8)
 
     def _new_target(self):
         # somewhere around the head: on the floor and close, or up in the water and further
