@@ -41,8 +41,7 @@ MANTLE_BUOYANCY = 0.99
 DAMPING = 0.05  # seconds: each joint's damping (the tissue's viscosity) is its muscle stiffness times this, so it doesn't ring
 # a relaxed octopus arm is floppy: its longitudinal tissue resists stretch with ~10-40 kPa (O. rubescens, JEB 2024)
 # against ~107 kPa of active muscle stress (Zullo et al. 2022), so bending a segment 45 degrees relaxed takes ~3-11%
-# of the muscle's full torque. The springs used to take 100%: a relaxed arm couldn't fold back in the water and it
-# held its arms tucked with muscle to swim
+# of the muscle's full torque
 SPRING_SHARE = 0.07
 # MuJoCo's suckers (adhesion) only pull on contacts, and a resting arm hovers ~1 mm above the floor, so a sucker
 # turned on often had nothing to grip. A real sucker protrudes and moulds onto the floor: let it reach 5 mm
@@ -112,8 +111,7 @@ def arm():
 
     tendons, muscles, suckers, sensors = "", "", "", ""
     # stretching slides a segment away from the one before it and opens a gap. A drawn-only tube from the end of one
-    # segment to the start of the next fills it however the joint bends or stretches. It used to be a straight capsule
-    # fixed to the segment: bent, it poked out of the side of the segment before (the arm looked like loose sticks).
+    # segment to the start of the next fills it however the joint bends or stretches.
     # A tendon with no stiffness, damping, limit or motor pulls on nothing
     for i in range(SEGMENTS):
         before = "arm_root" if i == 0 else f"seg{i - 1}_end"
@@ -190,11 +188,6 @@ def octopus(skin=""):
     <light pos="0 0 6" dir="0 0 -1" directional="true" diffuse="0.55 0.7 0.8" castshadow="true"/>
     <geom name="floor" type="plane" size="0 0 0.05" material="sand" contype="1" conaffinity="1" fluidshape="none"/>
 
-    <!-- the red ball, only for the eyes: environment.py puts it on the target (without targets, 1 m ahead along the direction) -->
-    <body name="target" mocap="true" pos="2 0 0.135">
-      <geom class="visual" type="sphere" size="0.12" rgba="1 0.25 0.2 0.7"/>
-    </body>
-
     <body name="torso" pos="0 0 0.12" gravcomp="{MANTLE_BUOYANCY}">
       <freejoint name="root"/>
       <camera name="follow" mode="trackcom" pos="0 -1.8 1.1" xyaxes="1 0 0 0 0.53 0.848"/>
@@ -220,18 +213,15 @@ def octopus(skin=""):
            At rest it points 20 degrees down; the tilt adds up to 45 degrees either way, so like a real octopus it can
            steer the jet up or down (a rudder to keep the head from nosediving). No collision: it only aims the jet -->
       <body name="siphon" pos="0 0 -0.012" gravcomp="{BUOYANCY}">
-        <!-- damping and the muscles below sized for a 10 g funnel: it used to swing with 4 N.m (5x an arm's base muscle)
-             against damping 0.5, burning ~120 W just aiming. 100x less of both: it swings just as fast (8 rad/s) for 1/100 -->
+        <!-- damping and the muscles below sized for a 10 g funnel: it swings at ~8 rad/s and aiming costs ~0.2 W -->
         <joint name="siphon_aim" axis="0 0 1" range="-180 180" damping="0.005"/>
         <joint name="siphon_tilt" axis="0 1 0" range="-45 45" damping="0.005"/>
         <!-- the siphon's mass (what the aim and tilt muscles move), invisible -->
         <geom type="capsule" fromto="0.032 0 0 0.064 0 -0.0116" size="0.008" contype="0" conaffinity="0" fluidshape="none" rgba="0 0 0 0"/>
         <!-- what shows: just the funnel's mouth, barely out from under the head -->
         <geom class="visual" material="skin" type="capsule" fromto="0.038 0 0 0.0432 0 -0.002" size="0.0036"/>
-        <!-- the jet pushes the body opposite to where the water leaves: backwards and a bit up -->
-        <!-- where the push acts: 1.4 cm lower, so its line passes ~0.4 cm from the lying octopus's center of mass instead
-             of 1.5 cm. Higher, a full jet twisted it with 0.49 N.m against ~0.05 N.m from its weight in water: random jets
-             flipped a newborn 38% of the time on the floor (now 14%), and on its back it learned to roll along curled up -->
+        <!-- the jet pushes the body opposite to where the water leaves: backwards and a bit up. Its line passes ~0.4 cm
+             from the lying octopus's center of mass, so a full jet barely twists it (higher, it flipped the octopus over) -->
         <site name="jet" pos="-0.004 0 -0.014" zaxis="-0.94 0 0.342" size="0.004" rgba="0 0 0 0"/>
       </body>
     </body>
@@ -244,9 +234,8 @@ def octopus(skin=""):
   <actuator>
 {actuators}    <position name="siphon_aim" joint="siphon_aim" kp="0.08" kv="0.003" forcerange="-0.04 0.04" inheritrange="1"/>
     <position name="siphon_tilt" joint="siphon_tilt" kp="0.08" kv="0.003" forcerange="-0.04 0.04" inheritrange="1"/>
-    <!-- up to 32 N, set by how it swims: mantle first with the arms relaxed, like a common octopus (Huffard 2006), its top
-         speed is ~1 m/s, the measured one (Wells, via Huffard 2006). It was 40 N with stiff arm springs; floppy arms drag less.
-         The environment stops it when the mantle is empty -->
+    <!-- up to 32 N: swimming mantle first with the arms relaxed, like a common octopus (Huffard 2006), its top speed is
+         ~1 m/s, the measured one (Wells, via Huffard 2006). The environment stops it when the mantle is empty -->
     <motor name="jet" site="jet" ctrlrange="0 1" gear="0 0 32 0 0 0"/>
   </actuator>
 

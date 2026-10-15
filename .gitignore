@@ -1,26 +1,17 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
 .venv
 
-# Local notes for the coding assistant (not part of the project)
+# local notes for the coding assistant and the project plan: local only
 CLAUDE.md
+PLAN.md
 
-# Trained model checkpoints
+# trained brains and training logs
 *.pt
-
-MUJOCO_LOG.TXT
 train*.log
+MUJOCO_LOG.TXT
 
-# screen recordings for debugging (may show the desktop): never published
+# videos (octopus clips, screen recordings) and the numbers taken from them: local only, never published
+data/
 *.mov
 *.mp4
-
-# brain backups, kept locally (big binaries, and they only work with the code they came from)
-backups/

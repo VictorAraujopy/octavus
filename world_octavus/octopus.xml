@@ -49,11 +49,6 @@
     <light pos="0 0 6" dir="0 0 -1" directional="true" diffuse="0.55 0.7 0.8" castshadow="true"/>
     <geom name="floor" type="plane" size="0 0 0.05" material="sand" contype="1" conaffinity="1" fluidshape="none"/>
 
-    <!-- the red ball, only for the eyes: environment.py puts it on the target (without targets, 1 m ahead along the direction) -->
-    <body name="target" mocap="true" pos="2 0 0.135">
-      <geom class="visual" type="sphere" size="0.12" rgba="1 0.25 0.2 0.7"/>
-    </body>
-
     <body name="torso" pos="0 0 0.12" gravcomp="0.99">
       <freejoint name="root"/>
       <camera name="follow" mode="trackcom" pos="0 -1.8 1.1" xyaxes="1 0 0 0 0.53 0.848"/>
@@ -255,18 +250,15 @@
            At rest it points 20 degrees down; the tilt adds up to 45 degrees either way, so like a real octopus it can
            steer the jet up or down (a rudder to keep the head from nosediving). No collision: it only aims the jet -->
       <body name="siphon" pos="0 0 -0.012" gravcomp="0.9669811320754716">
-        <!-- damping and the muscles below sized for a 10 g funnel: it used to swing with 4 N.m (5x an arm's base muscle)
-             against damping 0.5, burning ~120 W just aiming. 100x less of both: it swings just as fast (8 rad/s) for 1/100 -->
+        <!-- damping and the muscles below sized for a 10 g funnel: it swings at ~8 rad/s and aiming costs ~0.2 W -->
         <joint name="siphon_aim" axis="0 0 1" range="-180 180" damping="0.005"/>
         <joint name="siphon_tilt" axis="0 1 0" range="-45 45" damping="0.005"/>
         <!-- the siphon's mass (what the aim and tilt muscles move), invisible -->
         <geom type="capsule" fromto="0.032 0 0 0.064 0 -0.0116" size="0.008" contype="0" conaffinity="0" fluidshape="none" rgba="0 0 0 0"/>
         <!-- what shows: just the funnel's mouth, barely out from under the head -->
         <geom class="visual" material="skin" type="capsule" fromto="0.038 0 0 0.0432 0 -0.002" size="0.0036"/>
-        <!-- the jet pushes the body opposite to where the water leaves: backwards and a bit up -->
-        <!-- where the push acts: 1.4 cm lower, so its line passes ~0.4 cm from the lying octopus's center of mass instead
-             of 1.5 cm. Higher, a full jet twisted it with 0.49 N.m against ~0.05 N.m from its weight in water: random jets
-             flipped a newborn 38% of the time on the floor (now 14%), and on its back it learned to roll along curled up -->
+        <!-- the jet pushes the body opposite to where the water leaves: backwards and a bit up. Its line passes ~0.4 cm
+             from the lying octopus's center of mass, so a full jet barely twists it (higher, it flipped the octopus over) -->
         <site name="jet" pos="-0.004 0 -0.014" zaxis="-0.94 0 0.342" size="0.004" rgba="0 0 0 0"/>
       </body>
     </body>
@@ -386,9 +378,8 @@
 <adhesion name="seg15_sucker" body="seg15_" ctrlrange="0 1" gain="1.446"/>
     <position name="siphon_aim" joint="siphon_aim" kp="0.08" kv="0.003" forcerange="-0.04 0.04" inheritrange="1"/>
     <position name="siphon_tilt" joint="siphon_tilt" kp="0.08" kv="0.003" forcerange="-0.04 0.04" inheritrange="1"/>
-    <!-- up to 32 N, set by how it swims: mantle first with the arms relaxed, like a common octopus (Huffard 2006), its top
-         speed is ~1 m/s, the measured one (Wells, via Huffard 2006). It was 40 N with stiff arm springs; floppy arms drag less.
-         The environment stops it when the mantle is empty -->
+    <!-- up to 32 N: swimming mantle first with the arms relaxed, like a common octopus (Huffard 2006), its top speed is
+         ~1 m/s, the measured one (Wells, via Huffard 2006). The environment stops it when the mantle is empty -->
     <motor name="jet" site="jet" ctrlrange="0 1" gear="0 0 32 0 0 0"/>
   </actuator>
 
